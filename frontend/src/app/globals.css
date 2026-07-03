@@ -1,0 +1,248 @@
+@import "tailwindcss";
+
+@theme {
+  --color-border: oklch(var(--border));
+  --color-input: oklch(var(--input));
+  --color-ring: oklch(var(--ring));
+  --color-background: oklch(var(--background));
+  --color-foreground: oklch(var(--foreground));
+  
+  --color-primary: oklch(var(--primary));
+  --color-primary-foreground: oklch(var(--primary-foreground));
+  
+  --color-secondary: oklch(var(--secondary));
+  --color-secondary-foreground: oklch(var(--secondary-foreground));
+  
+  --color-destructive: oklch(var(--destructive));
+  --color-destructive-foreground: oklch(var(--destructive-foreground));
+  
+  --color-muted: oklch(var(--muted));
+  --color-muted-foreground: oklch(var(--muted-foreground));
+  
+  --color-accent: oklch(var(--accent));
+  --color-accent-foreground: oklch(var(--accent-foreground));
+  
+  --color-popover: oklch(var(--popover));
+  --color-popover-foreground: oklch(var(--popover-foreground));
+  
+  --color-card: oklch(var(--card));
+  --color-card-foreground: oklch(var(--card-foreground));
+  
+  --color-chart-1: oklch(var(--chart-1));
+  --color-chart-2: oklch(var(--chart-2));
+  --color-chart-3: oklch(var(--chart-3));
+  --color-chart-4: oklch(var(--chart-4));
+  --color-chart-5: oklch(var(--chart-5));
+
+  --color-success: oklch(var(--success));
+  --color-success-foreground: oklch(var(--success-foreground));
+  --color-warning: oklch(var(--warning));
+  --color-warning-foreground: oklch(var(--warning-foreground));
+
+  --color-sidebar: oklch(var(--sidebar));
+  --color-sidebar-foreground: oklch(var(--sidebar-foreground));
+  --color-sidebar-primary: oklch(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: oklch(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: oklch(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: oklch(var(--sidebar-accent-foreground));
+  --color-sidebar-border: oklch(var(--sidebar-border));
+  --color-sidebar-ring: oklch(var(--sidebar-ring));
+
+  --font-display: var(--font-display), serif;
+  --font-body: var(--font-body), sans-serif;
+  --font-mono: var(--font-mono), monospace;
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-fade-up: fade-up 0.4s ease-out;
+  --animate-pulse-slow: pulse-slow 2s ease-in-out infinite;
+  --animate-slide-in-left: slide-in-left 0.25s ease-out;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+  @keyframes fade-up {
+    from { transform: translateY(12px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  @keyframes slide-in-left {
+    from { transform: translateX(-16px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+}
+
+:root {
+  --radius: 0.625rem;
+
+  --background: 0.99 0 0;
+  --foreground: 0.15 0 0;
+  --card: 1.0 0 0;
+  --card-foreground: 0.15 0 0;
+  --popover: 1.0 0 0;
+  --popover-foreground: 0.15 0 0;
+
+  --primary: 0.65 0.21 275;
+  --primary-foreground: 0.98 0 0;
+
+  --secondary: 0.9 0.04 271;
+  --secondary-foreground: 0.25 0 0;
+  --muted: 0.95 0 0;
+  --muted-foreground: 0.5 0 0;
+
+  --accent: 0.55 0 0;
+  --accent-foreground: 0.98 0 0;
+
+  --destructive: 0.55 0.22 25;
+  --destructive-foreground: 0.98 0 0;
+
+  --border: 0.9 0 0;
+  --input: 0.9 0 0;
+  --ring: 0.65 0.21 275;
+
+  --chart-1: 0.65 0.21 275;
+  --chart-2: 0.52 0.17 142;
+  --chart-3: 0.6 0.18 60;
+  --chart-4: 0.55 0.22 25;
+  --chart-5: 0.75 0.15 210;
+
+  --sidebar: 0.98 0 0;
+  --sidebar-foreground: 0.15 0 0;
+  --sidebar-primary: 0.65 0.21 275;
+  --sidebar-primary-foreground: 0.98 0 0;
+  --sidebar-accent: 0.95 0 0;
+  --sidebar-accent-foreground: 0.25 0 0;
+  --sidebar-border: 0.9 0 0;
+  --sidebar-ring: 0.65 0.21 275;
+
+  --success: 0.52 0.17 142;
+  --success-foreground: 0.98 0 0;
+  --warning: 0.6 0.18 60;
+  --warning-foreground: 0.15 0 0;
+}
+
+.dark {
+  --background: 0.1 0 0;
+  --foreground: 0.95 0 0;
+  --card: 0.15 0 0;
+  --card-foreground: 0.95 0 0;
+  --popover: 0.18 0 0;
+  --popover-foreground: 0.95 0 0;
+
+  --primary: 0.75 0.22 275;
+  --primary-foreground: 0.1 0 0;
+
+  --secondary: 0.2 0.02 271;
+  --secondary-foreground: 0.85 0 0;
+  --muted: 0.22 0 0;
+  --muted-foreground: 0.55 0 0;
+
+  --accent: 0.7 0 0;
+  --accent-foreground: 0.1 0 0;
+
+  --destructive: 0.65 0.19 22;
+  --destructive-foreground: 0.1 0 0;
+
+  --border: 0.22 0 0;
+  --input: 0.22 0 0;
+  --ring: 0.75 0.22 275;
+
+  --chart-1: 0.75 0.22 275;
+  --chart-2: 0.6 0.18 142;
+  --chart-3: 0.68 0.2 60;
+  --chart-4: 0.65 0.19 22;
+  --chart-5: 0.72 0.18 210;
+
+  --sidebar: 0.13 0 0;
+  --sidebar-foreground: 0.95 0 0;
+  --sidebar-primary: 0.75 0.22 275;
+  --sidebar-primary-foreground: 0.1 0 0;
+  --sidebar-accent: 0.18 0 0;
+  --sidebar-accent-foreground: 0.85 0 0;
+  --sidebar-border: 0.22 0 0;
+  --sidebar-ring: 0.75 0.22 275;
+
+  --success: 0.6 0.18 142;
+  --success-foreground: 0.1 0 0;
+  --warning: 0.68 0.2 60;
+  --warning-foreground: 0.1 0 0;
+}
+
+* {
+  border-color: oklch(var(--border));
+}
+
+body {
+  background: oklch(var(--background));
+  color: oklch(var(--foreground));
+  font-family: var(--font-body), sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom utilities */
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.shadow-elevated {
+  box-shadow: 0 20px 60px oklch(0 0 0 / 0.12);
+}
+
+.shadow-subtle {
+  box-shadow: 0 1px 3px oklch(0 0 0 / 0.08);
+}
+
+.glass-effect {
+  backdrop-filter: blur(12px);
+  background-color: oklch(var(--card) / 0.6);
+}
+
+/* Fix for native select dropdowns in dark theme */
+select {
+  color: oklch(var(--foreground));
+  background-color: oklch(var(--background));
+}
+
+select option {
+  color: oklch(var(--foreground));
+  background-color: oklch(var(--background));
+}
+
+/* Enforce Portrait Orientation for Mobile */
+@media screen and (max-height: 600px) and (orientation: landscape) {
+  body::before {
+    content: "Please rotate your device back to Portrait Mode to use FoxFlow Mobile.";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: oklch(var(--background));
+    color: oklch(var(--foreground));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+    font-size: 1.25rem;
+    font-weight: bold;
+    z-index: 99999;
+  }
+  
+  body > * {
+    display: none !important;
+  }
+}

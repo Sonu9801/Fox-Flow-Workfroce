@@ -1,0 +1,50 @@
+import os
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+from app.config import settings
+from app.database import engine, Base
+from app.routers import auth, workers, vehicles, quality, dispatch, inventory, activities, websocket, attendance, payroll, oem_schedule, attendance_settings, notifications, jobs
+
+# Create database tables if they do not exist
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(
+    title="FOXFLOW ERP API",
+    description="Backend API for FoxFlow ERP Manufacturing Execution System",
+    version="1.0.0"
+)
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=".*",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount local uploads static files
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+
+# Include Routers
+app.include_router(auth.router, prefix="/api")
+app.include_router(workers.router, prefix="/api")
+app.include_router(vehicles.router, prefix="/api")
+app.include_router(activities.router, prefix="/api")
+app.include_router(oem_schedule.router, prefix="/api")
+app.include_router(inventory.router, prefix="/api")
+app.include_router(quality.router, prefix="/api")
+app.include_router(dispatch.router, prefix="/api")
+app.include_router(attendance.router, prefix="/api")
+app.include_router(attendance_settings.router, prefix="/api")
+app.include_router(payroll.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
+app.include_router(jobs.router, prefix="/api")
+app.include_router(websocket.router, prefix="")
+
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "message": "FOXFLOW ERP API is healthy"}

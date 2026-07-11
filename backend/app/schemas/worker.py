@@ -45,7 +45,7 @@ class WorkerCreate(WorkerBase):
 
 class WorkerUpdate(WorkerBase):
     salary_profile: Optional[SalaryProfileBase] = None
-    reason: str
+    reason: str = "No reason provided"
 
 class WorkerResponse(WorkerBase):
     id: int

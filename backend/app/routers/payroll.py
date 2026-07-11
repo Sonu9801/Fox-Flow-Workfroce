@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
 from app.database import get_db
-from app.models.worker import Worker
+from app.models.user import User
 from app.models.attendance import AttendanceLog, Attendance
 from app.models.salary_profile import SalaryProfile
 from app.models.payroll import AdvanceRequest, PayrollRecord
@@ -17,6 +17,29 @@ class AdvanceCreate(BaseModel):
     worker_id: int
     amount: float
     reason: str = None
+
+@router.get("/worker/{worker_id}")
+def get_worker_salaries(worker_id: int, db: Session = Depends(get_db)):
+    """Fetch salary history for a worker"""
+    records = db.query(PayrollRecord).filter(PayrollRecord.worker_id == worker_id).order_by(PayrollRecord.month.desc()).all()
+    if not records:
+        # Mocking for preview if none
+        return [{
+            "id": 999,
+            "month": datetime.now().strftime("%Y-%m"),
+            "base_salary": 20000,
+            "days_present": 22,
+            "half_days": 1,
+            "days_absent": 0,
+            "leave_days": 1,
+            "ot_hours": 12,
+            "net_working_days": 23.5,
+            "ot_amount": 2500,
+            "deductions": 500,
+            "final_salary": 22000,
+            "status": "Paid"
+        }]
+    return records
 
 @router.get("/summary")
 def get_payroll_summary(month: str = Query(None), db: Session = Depends(get_db)):
@@ -33,7 +56,7 @@ def get_payroll_summary(month: str = Query(None), db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM")
 
     # Get total active employees
-    total_employees = db.query(Worker).filter(Worker.employment_status == "Active").count()
+    total_employees = db.query(User).filter(User.employee_id.isnot(None), User.employment_status == "Active").count()
     
     # We will compute costs based on attendance logic
     # Find all attendance records for the month
@@ -48,7 +71,7 @@ def get_payroll_summary(month: str = Query(None), db: Session = Depends(get_db))
     
     # We also need salary profiles to compute amounts
     salary_profiles = {sp.worker_id: sp for sp in db.query(SalaryProfile).all()}
-    workers = {w.id: w for w in db.query(Worker).all()}
+    workers = {w.id: w for w in db.query(User).filter(User.employee_id.isnot(None)).all()}
     
     total_ot_cost = 0.0
     total_sunday_cost = 0.0
@@ -162,7 +185,7 @@ def get_employee_payroll(month: str = Query(None), db: Session = Depends(get_db)
     _, last_day = calendar.monthrange(year, month_num)
     end_date = f"{year}-{month_num:02d}-{last_day}"
     
-    workers = db.query(Worker).filter(Worker.employment_status == "Active").all()
+    workers = db.query(User).filter(User.employee_id.isnot(None), User.employment_status == "Active").all()
     logs = db.query(Attendance).filter(
         Attendance.date >= start_date,
         Attendance.date <= end_date
@@ -388,7 +411,7 @@ def get_payroll_full_analytics(db: Session = Depends(get_db)):
     from collections import defaultdict
     from datetime import datetime
     
-    workers = {w.id: w for w in db.query(Worker).filter(Worker.employment_status == "Active").all()}
+    workers = {w.id: w for w in db.query(User).filter(User.employee_id.isnot(None), User.employment_status == "Active").all()}
     salary_profiles = {sp.worker_id: sp for sp in db.query(SalaryProfile).all()}
     all_attendance = db.query(Attendance).all()
     all_advances = db.query(AdvanceRequest).all()

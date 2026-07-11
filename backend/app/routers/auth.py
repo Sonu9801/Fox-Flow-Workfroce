@@ -4,15 +4,89 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, Token
-from app.auth import get_password_hash, verify_password, create_access_token, create_refresh_token, get_current_user, get_current_active_user, RoleChecker
-from app.models.worker import Worker
-from app.models.device import Device
+from app.auth import create_access_token, create_refresh_token, get_current_user, get_current_active_user, RoleChecker
 from jose import JWTError, jwt
 from app.config import settings
 from pydantic import BaseModel
 from typing import Optional
+import smtplib
+import random
+from email.message import EmailMessage
+from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+class OtpRequest(BaseModel):
+    email: str
+
+class OtpVerify(BaseModel):
+    email: str
+    otp_code: str
+
+@router.post("/request-otp")
+def request_otp(data: OtpRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Email not registered"
+        )
+        
+    otp = str(random.randint(100000, 999999))
+    user.otp_code = otp
+    user.otp_expires_at = datetime.utcnow() + timedelta(minutes=5)
+    db.commit()
+
+    try:
+        from app.email_utils import send_otp_email
+        send_otp_email(data.email, otp, user.name)
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send OTP email")
+
+    return {"message": "OTP sent successfully"}
+
+@router.post("/verify-otp")
+def verify_otp(data: OtpVerify, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or OTP",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    if user.otp_code != data.otp_code:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or OTP",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    if not user.otp_expires_at or user.otp_expires_at < datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP has expired",
+        )
+
+    if hasattr(user, "is_active") and not user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+        
+    user.otp_code = None
+    user.otp_expires_at = None
+    db.commit()
+
+    access_token = create_access_token(data={"sub": user.email, "role": user.role})
+    refresh_token = create_refresh_token(data={"sub": user.email, "role": user.role})
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "username": user.email,
+        "role": user.role,
+        "name": user.name
+    }
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
@@ -23,16 +97,16 @@ class DeviceRegistrationRequest(BaseModel):
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(RoleChecker(["admin"]))])
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.username == user_in.username).first()
+    db_user = db.query(User).filter(User.email == user_in.email).first()
     if db_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already registered"
+            detail="Email already registered"
         )
-    hashed_pwd = get_password_hash(user_in.password)
+    # hashed_pwd = get_password_hash(user_in.password) # UserCreate has no password
     user = User(
-        username=user_in.username,
-        hashed_password=hashed_pwd,
+        email=user_in.email,
+        name=user_in.name,
         role=user_in.role
     )
     db.add(user)
@@ -42,31 +116,31 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == form_data.username).first()
+    user = db.query(User).filter(User.email == form_data.username).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
 
-    access_token = create_access_token(data={"sub": user.username, "role": user.role})
-    refresh_token = create_refresh_token(data={"sub": user.username, "role": user.role})
+    access_token = create_access_token(data={"sub": user.email, "role": user.role})
+    refresh_token = create_refresh_token(data={"sub": user.email, "role": user.role})
     
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "bearer",
-        "username": user.username,
+        "username": user.email,
         "role": user.role
     }
 
 @router.post("/worker-login")
 def worker_login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     # Assuming username field is used for mobile number
-    worker = db.query(Worker).filter(Worker.mobile_number == form_data.username).first()
+    worker = db.query(User).filter(User.mobile_number == form_data.username, User.role.ilike("worker")).first()
     if not worker or worker.password != form_data.password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -111,11 +185,11 @@ def refresh_access_token(body: RefreshTokenRequest, db: Session = Depends(get_db
     # Check if user still exists/active
     if username.startswith("worker:"):
         worker_id = int(username.split(":")[1])
-        user = db.query(Worker).filter(Worker.id == worker_id).first()
+        user = db.query(User).filter(User.id == worker_id, User.role.ilike("worker")).first()
         if not user or user.employment_status != "Active":
             raise credentials_exception
     else:
-        user = db.query(User).filter(User.username == username).first()
+        user = db.query(User).filter(User.email == username).first()
         if not user or not user.is_active:
             raise credentials_exception
 

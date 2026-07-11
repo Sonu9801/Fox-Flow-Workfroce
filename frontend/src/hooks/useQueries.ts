@@ -4,13 +4,13 @@ import {
   workersApi, 
   qualityApi, 
   dispatchApi, 
-  inventoryApi, 
+  invoicesApi, 
   activitiesApi,
   notificationsApi,
   attendanceApi,
   payrollApi
 } from "@/lib/api";
-import type { Vehicle, Worker, QCRecord, DispatchRecord, InventoryItem, ActivityEvent } from "@/types";
+import type { Vehicle, Worker, QCRecord, DispatchRecord, ActivityEvent } from "@/types";
 
 export function useVehicles() {
   return useQuery<Vehicle[]>({
@@ -40,10 +40,24 @@ export function useDispatchRecords() {
   });
 }
 
-export function useInventory() {
-  return useQuery<InventoryItem[]>({
-    queryKey: ["inventory"],
-    queryFn: inventoryApi.getAll,
+export function useInvoices() {
+  return useQuery<any[]>({
+    queryKey: ["invoices"],
+    queryFn: invoicesApi.getAll,
+  });
+}
+
+export function useInvoiceDashboardStats() {
+  return useQuery<any>({
+    queryKey: ["invoiceStats"],
+    queryFn: invoicesApi.getDashboardStats,
+  });
+}
+
+export function useInvoiceAnalytics() {
+  return useQuery<any>({
+    queryKey: ["invoiceAnalytics"],
+    queryFn: invoicesApi.getAnalytics,
   });
 }
 
@@ -271,13 +285,31 @@ export function useUpdateDispatchRecord() {
   });
 }
 
-export function useAdjustStock() {
+export function useUploadInvoice() {
+  return useMutation({
+    mutationFn: (file: File) => invoicesApi.upload(file),
+  });
+}
+
+export function useCreateInvoice() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, quantity }: { id: number | string; quantity: number }) =>
-      inventoryApi.adjustStock(id, quantity),
+    mutationFn: (data: any) => invoicesApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoiceStats"] });
+    },
+  });
+}
+
+export function useUpdateInvoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number | string; data: any }) =>
+      invoicesApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoiceStats"] });
     },
   });
 }

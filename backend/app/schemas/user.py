@@ -1,26 +1,37 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 
 class UserBase(BaseModel):
-    username: str
+    email: EmailStr
+    name: str
 
 class UserCreate(UserBase):
-    password: str
     role: Optional[str] = "operator"
 
-class UserResponse(UserBase):
+class UserResponse(BaseModel):
     id: int
+    email: str
+    name: str
     role: str
 
     class Config:
         from_attributes = True
 
+class OTPRequest(BaseModel):
+    email: EmailStr
+
+class OTPVerify(BaseModel):
+    email: EmailStr
+    otp_code: str
+
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str
-    username: str
+    email: str
+    name: str
     role: str
 
 class TokenData(BaseModel):
-    username: Optional[str] = None
+    username: Optional[str] = None  # kept as "username" internally for JWT sub compatibility
     role: Optional[str] = None

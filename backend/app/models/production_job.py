@@ -1,13 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database import Base
-
-job_worker_association = Table(
-    "job_worker_association",
-    Base.metadata,
-    Column("job_id", Integer, ForeignKey("production_jobs.id", ondelete="CASCADE"), primary_key=True),
-    Column("worker_id", Integer, ForeignKey("workers.id", ondelete="CASCADE"), primary_key=True)
-)
+from app.models.associations import job_user_association
 
 class ProductionJob(Base):
     __tablename__ = "production_jobs"
@@ -24,9 +18,9 @@ class ProductionJob(Base):
     comments = Column(Text, nullable=True)
     
     vehicle = relationship("Vehicle", back_populates="production_jobs")
-    supervisor = relationship("User")
+    supervisor = relationship("User", foreign_keys=[supervisor_id])
     workers = relationship(
-        "Worker", 
-        secondary=job_worker_association, 
+        "User", 
+        secondary=job_user_association, 
         back_populates="production_jobs"
     )

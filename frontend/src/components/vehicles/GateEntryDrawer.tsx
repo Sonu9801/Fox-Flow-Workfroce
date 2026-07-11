@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuthStore } from "@/store/authStore";
+import { useQueryClient } from "@tanstack/react-query";
 import { vehiclesApi } from "@/lib/api";
 import { toast } from "sonner";
 import { MapPin, FileText, Clock, User, CheckCircle, XCircle, PauseCircle, Download } from "lucide-react";
@@ -29,6 +30,7 @@ export function GateEntryDrawer({ vehicle, open, onOpenChange, onVerificationCom
   const [remarks, setRemarks] = useState("");
   const [loading, setLoading] = useState(false);
   const [actionType, setActionType] = useState<"approve" | "reject" | "hold" | null>(null);
+  const queryClient = useQueryClient();
 
   const isVerifier = role === "supervisor" || role === "manager" || role === "admin" || role === "owner";
 
@@ -48,6 +50,8 @@ export function GateEntryDrawer({ vehicle, open, onOpenChange, onVerificationCom
         remarks: remarks || "Verified",
       });
       toast.success(`Vehicle ${action}d successfully`);
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
       onOpenChange(false);
       onVerificationComplete();
     } catch (error: any) {
@@ -61,7 +65,7 @@ export function GateEntryDrawer({ vehicle, open, onOpenChange, onVerificationCom
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto bg-background/95 backdrop-blur-xl border-l border-border flex flex-col p-0">
-        <SheetHeader className="p-6 border-b border-border bg-card/50 sticky top-0 z-10">
+        <SheetHeader className="p-6 border-b border-border bg-background sticky top-0 z-20">
           <SheetTitle className="text-2xl font-bold font-display flex items-center gap-2">
             Gate Entry Verification
           </SheetTitle>

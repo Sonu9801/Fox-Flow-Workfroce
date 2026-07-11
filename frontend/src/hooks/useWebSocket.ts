@@ -5,7 +5,17 @@ export function useWebSocket() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://192.168.1.6:8000/ws";
+    // Dynamically get the host to support testing from other devices on the same network
+    const getWsUrl = () => {
+      if (typeof window === "undefined") return "ws://localhost:8000/ws";
+      const host = window.location.hostname;
+      // If deployed, you might want to use process.env.NEXT_PUBLIC_WS_URL here instead
+      return `ws://${host}:8000/ws`;
+    };
+    
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL && !process.env.NEXT_PUBLIC_WS_URL.includes("127.0.0.1") && !process.env.NEXT_PUBLIC_WS_URL.includes("localhost") 
+      ? process.env.NEXT_PUBLIC_WS_URL 
+      : getWsUrl();
     
     let ws: WebSocket;
     let timeoutId: NodeJS.Timeout;
@@ -53,11 +63,6 @@ export function useWebSocket() {
               queryClient.invalidateQueries({ queryKey: ["vehicles"] });
               queryClient.invalidateQueries({ queryKey: ["activities"] });
               break;
-            case "INVENTORY_ITEM_CREATED":
-            case "INVENTORY_ITEM_UPDATED":
-            case "INVENTORY_STOCK_ADJUSTED":
-              queryClient.invalidateQueries({ queryKey: ["inventory"] });
-              break;
             case "ACTIVITY_EVENT_CREATED":
               queryClient.invalidateQueries({ queryKey: ["activities"] });
               break;
@@ -90,7 +95,8 @@ export function useWebSocket() {
 
       ws.onerror = (err) => {
         if (isUnmounted) return;
-        console.error("WebSocket error. Ensure the backend is running at", wsUrl);
+        // Use console.warn instead of console.error to prevent Next.js from showing a full-screen error overlay
+        console.warn("WebSocket connection failed. Retrying in background...", wsUrl);
         ws.close();
       };
     };

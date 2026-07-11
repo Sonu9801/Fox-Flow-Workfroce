@@ -166,15 +166,6 @@ export interface DispatchRecord {
   deliveryRemarks?: string | null;
 }
 
-export interface InventoryItem {
-  id: string;
-  partName: string;
-  sku: string;
-  stockLevel: number;
-  reorderLevel: number;
-  location: string;
-  updatedAt: string;
-}
 
 export interface ActivityEvent {
   id: number;

@@ -1,0 +1,452 @@
+"use client";
+
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { format } from "date-fns";
+import Webcam from "react-webcam";
+import { 
+  MapPin, Clock, Fingerprint, Calendar as CalendarIcon, 
+  IndianRupee, AlertCircle, CheckCircle2, ChevronRight, LogOut 
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { WorkerJobs } from "./WorkerJobs";
+
+// Fox Enterprises Default Location
+const COMPANY_LAT = 28.4736262;
+const COMPANY_LNG = 77.2918577;
+const RADIUS_METERS = 200;
+
+// Haversine formula
+function getDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371e3;
+  const p1 = lat1 * Math.PI/180;
+  const p2 = lat2 * Math.PI/180;
+  const dp = (lat2-lat1) * Math.PI/180;
+  const dl = (lon2-lon1) * Math.PI/180;
+  const a = Math.sin(dp/2) * Math.sin(dp/2) +
+            Math.cos(p1) * Math.cos(p2) *
+            Math.sin(dl/2) * Math.sin(dl/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return Math.floor(R * c);
+}
+
+const dataURLtoBlob = (dataurl: string) => {
+  const arr = dataurl.split(',');
+  const mimeMatch = arr[0].match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while(n--){
+      u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], {type:mime});
+};
+
+export default function WorkforceHome() {
+  const router = useRouter();
+  const [worker, setWorker] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [activeTab, setActiveTab] = useState<"attendance" | "jobs">("attendance");
+  
+  // Geofence & Location State
+  const [location, setLocation] = useState<{lat: number, lng: number, accuracy: number} | null>(null);
+  const [distance, setDistance] = useState<number | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  
+  // Punch State
+  const [status, setStatus] = useState<"Not Punched In" | "Punched In">("Not Punched In");
+  const [punchInTime, setPunchInTime] = useState<Date | null>(null);
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [punchAction, setPunchAction] = useState<"Punch In" | "Punch Out">("Punch In");
+  const [uploading, setUploading] = useState(false);
+  
+  const webcamRef = useRef<Webcam>(null);
+
+  useEffect(() => {
+    const workerInfoStr = localStorage.getItem("worker_info");
+    if (!workerInfoStr) {
+      router.push("/workforce/login");
+      return;
+    }
+    const info = JSON.parse(workerInfoStr);
+    setWorker(info);
+
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, [router]);
+
+  const requestLocation = useCallback(() => {
+    setLocating(true);
+    setLocationError("");
+    
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser");
+      setLocating(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        setLocation({ lat: latitude, lng: longitude, accuracy });
+        
+        const dist = getDistanceInMeters(latitude, longitude, COMPANY_LAT, COMPANY_LNG);
+        setDistance(dist);
+        setLocating(false);
+      },
+      (error) => {
+        setLocationError("Please enable GPS/Location access to punch in.");
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }, []);
+
+  useEffect(() => {
+    if (worker) {
+      requestLocation();
+    }
+  }, [worker, requestLocation]);
+
+  const handlePunchClick = (action: "Punch In" | "Punch Out") => {
+    if (distance === null || distance > RADIUS_METERS) {
+      toast.warning("You appear to be outside the geofence. The backend will make the final validation.", {
+        icon: <AlertCircle className="text-warning" />
+      });
+      // We do NOT return here, we let the backend make the final decision.
+    }
+    setPunchAction(action);
+    setShowCameraModal(true);
+  };
+
+  const submitPunch = async () => {
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (!imageSrc) {
+      toast.error("Failed to capture photo");
+      return;
+    }
+
+    setUploading(true);
+    
+    const token = localStorage.getItem("worker_token");
+    const payload = {
+      worker_id: worker.worker_id,
+      action: punchAction,
+      latitude: location?.lat,
+      longitude: location?.lng,
+      accuracy: location?.accuracy,
+      photo_base64: imageSrc,
+      timestamp: new Date().toISOString()
+    };
+
+    if (!navigator.onLine) {
+       // Save to offline queue
+       const queue = JSON.parse(localStorage.getItem("attendance_queue") || "[]");
+       queue.push(payload);
+       localStorage.setItem("attendance_queue", JSON.stringify(queue));
+       
+       toast.success(`Offline: ${punchAction} saved locally and will sync when online.`);
+       setShowCameraModal(false);
+       if (punchAction === "Punch In") {
+         setStatus("Punched In");
+         setPunchInTime(new Date());
+       } else {
+         setStatus("Not Punched In");
+         setPunchInTime(null);
+       }
+       setUploading(false);
+       return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("worker_id", String(worker.worker_id));
+      formData.append("action", punchAction);
+      formData.append("latitude", String(location?.lat || 0));
+      formData.append("longitude", String(location?.lng || 0));
+      formData.append("accuracy", String(location?.accuracy || 0));
+      
+      const blob = dataURLtoBlob(imageSrc);
+      formData.append("photo", blob, `punch_${Date.now()}.jpg`);
+
+      const res = await fetch("http://192.168.1.6:8000/api/attendance/punch", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: formData
+      });
+
+      if (!res.ok) {
+         const errData = await res.json().catch(() => null);
+         throw new Error(errData?.detail || "Failed to record attendance");
+      }
+
+      toast.success(`${punchAction} successful!`);
+      setShowCameraModal(false);
+      
+      if (punchAction === "Punch In") {
+        setStatus("Punched In");
+        setPunchInTime(new Date());
+      } else {
+        setStatus("Not Punched In");
+        setPunchInTime(null);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error submitting punch. Try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const processQueue = useCallback(async () => {
+    if (!navigator.onLine) return;
+    
+    const queue = JSON.parse(localStorage.getItem("attendance_queue") || "[]");
+    if (queue.length === 0) return;
+    
+    const token = localStorage.getItem("worker_token");
+    const newQueue = [];
+    let synced = 0;
+    
+    for (const item of queue) {
+      try {
+        const formData = new FormData();
+        formData.append("worker_id", String(item.worker_id));
+        formData.append("action", item.action);
+        formData.append("latitude", String(item.latitude || 0));
+        formData.append("longitude", String(item.longitude || 0));
+        formData.append("accuracy", String(item.accuracy || 0));
+        
+        if (item.photo_base64) {
+          const blob = dataURLtoBlob(item.photo_base64);
+          formData.append("photo", blob, `offline_punch_${Date.now()}.jpg`);
+        }
+        
+        const res = await fetch("http://192.168.1.6:8000/api/attendance/punch", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` },
+          body: formData,
+        });
+        
+        if (!res.ok) {
+           throw new Error("Failed to sync");
+        }
+        synced++;
+      } catch (err) {
+        newQueue.push(item);
+      }
+    }
+    
+    localStorage.setItem("attendance_queue", JSON.stringify(newQueue));
+    if (synced > 0) {
+      toast.success(`Synced ${synced} offline attendance records.`);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("online", processQueue);
+    return () => window.removeEventListener("online", processQueue);
+  }, [processQueue]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("worker_token");
+    localStorage.removeItem("worker_info");
+    router.push("/workforce/login");
+  };
+
+  if (!worker) return null;
+
+  const isInside = distance !== null && distance <= RADIUS_METERS;
+
+  return (
+    <div className="min-h-screen bg-muted/20 pb-20">
+      {/* Top App Bar */}
+      <div className="bg-card px-4 py-4 sticky top-0 z-10 border-b border-border shadow-sm flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{worker.name}</h1>
+          <p className="text-xs text-muted-foreground font-medium">Worker ID: {worker.worker_id} • General Shift</p>
+        </div>
+        <button onClick={handleLogout} className="p-2 bg-muted rounded-full text-muted-foreground">
+          <LogOut size={16} />
+        </button>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {activeTab === "attendance" ? (
+          <>
+        {/* Clock & Status */}
+        <div className="bg-primary text-primary-foreground rounded-3xl p-6 shadow-md relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Clock size={100} />
+          </div>
+          <p className="text-sm font-medium opacity-80 mb-1">{format(currentTime, "EEEE, MMMM do")}</p>
+          <h2 className="text-4xl font-black tracking-tighter mb-4">{format(currentTime, "hh:mm:ss a")}</h2>
+          
+          <div className="flex items-center gap-3">
+            <Badge variant="secondary" className="bg-white/20 text-white hover:bg-white/30 border-0">
+              {status === "Punched In" ? "🟢 On Duty" : "⚪ Off Duty"}
+            </Badge>
+            {punchInTime && (
+              <span className="text-xs font-semibold">Since {format(punchInTime, "hh:mm a")}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Location Engine Card */}
+        <div className="bg-card rounded-3xl p-5 border border-border shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <MapPin size={18} className="text-primary" /> Location Engine
+            </h3>
+            <button onClick={requestLocation} className="text-xs text-primary font-medium bg-primary/10 px-3 py-1 rounded-full">
+              Refresh GPS
+            </button>
+          </div>
+          
+          <div className="flex items-center gap-4 bg-muted/40 p-3 rounded-2xl">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${locating ? 'bg-muted animate-pulse' : isInside ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'}`}>
+              {locating ? <MapPin size={24} /> : isInside ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
+            </div>
+            <div>
+              <p className="text-sm font-bold">
+                {locating ? "Locating you..." : isInside ? "Inside Premises" : "Outside Factory Area"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {locating ? "Acquiring GPS signal" : distance !== null ? `${distance} meters away from target` : locationError}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Punch Card */}
+        <div className="bg-card rounded-3xl p-5 border border-border shadow-sm text-center">
+          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 text-primary">
+            <Fingerprint size={32} />
+          </div>
+          <h3 className="font-bold text-lg mb-1">Live Attendance</h3>
+          <p className="text-xs text-muted-foreground mb-6">Requires GPS and Front Camera Selfie</p>
+          
+          {status === "Not Punched In" ? (
+            <Button 
+              size="lg" 
+              className="w-full h-14 rounded-2xl text-lg font-bold shadow-lg"
+              onClick={() => handlePunchClick("Punch In")}
+            >
+              Punch In Now
+            </Button>
+          ) : (
+            <Button 
+              size="lg" 
+              variant="destructive"
+              className="w-full h-14 rounded-2xl text-lg font-bold shadow-lg"
+              onClick={() => handlePunchClick("Punch Out")}
+            >
+              Punch Out
+            </Button>
+          )}
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-card rounded-3xl p-4 border border-border shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center mb-2">
+              <CalendarIcon size={16} />
+            </div>
+            <p className="text-2xl font-black">21</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Present Days</p>
+          </div>
+          <div className="bg-card rounded-3xl p-4 border border-border shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center mb-2">
+              <Clock size={16} />
+            </div>
+            <p className="text-2xl font-black">42h</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Hours</p>
+          </div>
+        </div>
+
+        <div className="mt-8 bg-card rounded-3xl p-5 border border-border shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Current Balance</p>
+            <p className="text-2xl font-black tracking-tight">₹14,500</p>
+          </div>
+          <ChevronRight className="text-muted-foreground" />
+        </div>
+      </>
+      ) : (
+        <WorkerJobs workerId={worker.worker_id} />
+      )}
+      </div>
+
+      {/* Camera Modal */}
+      <AnimatePresence>
+        {showCameraModal && (
+          <motion.div 
+            initial={{ opacity: 0, y: "100%" }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: "100%" }}
+            className="fixed inset-0 z-50 bg-background flex flex-col"
+          >
+            <div className="px-4 py-4 border-b border-border flex items-center justify-between">
+              <h2 className="font-bold text-lg">{punchAction} Verification</h2>
+              <button onClick={() => setShowCameraModal(false)} className="bg-muted p-2 rounded-full">
+                <AlertCircle size={20} className="text-muted-foreground" />
+              </button>
+            </div>
+            
+            <div className="flex-1 bg-black relative flex items-center justify-center overflow-hidden">
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                videoConstraints={{ facingMode: "user" }}
+                className="min-h-full min-w-full object-cover"
+              />
+              
+              {/* Overlay guides */}
+              <div className="absolute inset-0 border-[40px] border-black/40 rounded-[100px] pointer-events-none" />
+              <div className="absolute top-10 left-0 right-0 text-center z-10">
+                <p className="text-white font-semibold drop-shadow-md">Align your face in the oval</p>
+              </div>
+            </div>
+
+            <div className="p-6 bg-card border-t border-border">
+              <Button 
+                onClick={submitPunch}
+                disabled={uploading}
+                className="w-full h-16 rounded-3xl text-xl font-bold shadow-xl"
+                size="lg"
+              >
+                {uploading ? "Verifying..." : `Capture & ${punchAction}`}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Bottom Navigation spacer */}
+      <div className="h-20" />
+      
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-2 flex justify-around items-center z-40 pb-safe">
+        <button 
+          onClick={() => setActiveTab("attendance")}
+          className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors w-1/2 ${activeTab === "attendance" ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-muted"}`}
+        >
+          <Fingerprint size={24} className="mb-1" />
+          <span className="text-[10px] font-bold">Attendance</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab("jobs")}
+          className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors w-1/2 ${activeTab === "jobs" ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-muted"}`}
+        >
+          <Clock size={24} className="mb-1" />
+          <span className="text-[10px] font-bold">My Jobs</span>
+        </button>
+      </div>
+    </div>
+  );
+}

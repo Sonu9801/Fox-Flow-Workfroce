@@ -1,5 +1,7 @@
+import json
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from pydantic import field_validator
 from app.schemas.base import CamelModel
 
 class DefectRecordBase(CamelModel):
@@ -39,6 +41,16 @@ class QCRecordBase(CamelModel):
     result: Optional[str] = None
     defects_found: List[str] = []
     notes: Optional[str] = None
+
+    @field_validator("defects_found", "checklist", "photos", mode="before")
+    @classmethod
+    def parse_json_string(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, ValueError):
+                return []
+        return v if v is not None else []
 
 class QCRecordCreate(QCRecordBase):
     pass

@@ -6,7 +6,7 @@ from typing import List
 from app.database import get_db
 from app.models.production_job import ProductionJob
 from app.models.vehicle import Vehicle
-from app.models.worker import Worker
+from app.models.user import User
 from app.models.notification import Notification
 from app.schemas.production_job import ProductionJobCreate, ProductionJobUpdate, ProductionJobResponse
 from app.auth import get_current_active_user
@@ -28,7 +28,7 @@ async def assign_job(payload: ProductionJobCreate, db: Session = Depends(get_db)
         expected_duration_minutes=payload.expected_duration_minutes,
     )
     
-    workers = db.query(Worker).filter(Worker.id.in_(payload.worker_ids)).all()
+    workers = db.query(User).filter(User.id.in_(payload.worker_ids)).all()
     if len(workers) != len(payload.worker_ids):
         raise HTTPException(status_code=404, detail="One or more workers not found")
         
@@ -63,7 +63,7 @@ async def assign_job(payload: ProductionJobCreate, db: Session = Depends(get_db)
 
 @router.get("/worker/{worker_id}", response_model=List[ProductionJobResponse])
 def get_worker_jobs(worker_id: int, db: Session = Depends(get_db)):
-    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    worker = db.query(User).filter(User.id == worker_id).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
         

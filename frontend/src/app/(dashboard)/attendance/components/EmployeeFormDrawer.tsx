@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Camera, CheckCircle2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { workersApi } from "@/lib/api";
 
 interface EmployeeFormDrawerProps {
   open: boolean;
@@ -118,8 +119,6 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
     setIsSubmitting(true);
     
     try {
-      const url = worker ? `/api/workers/${worker.id}` : "/api/workers";
-      const method = worker ? "PUT" : "POST";
       
       const payload = {
         ...form,
@@ -132,18 +131,14 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
         }
       };
       
-      const res = await fetch(`http://192.168.1.6:8000${url}`, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      
-      if (res.ok) {
-        queryClient.invalidateQueries({ queryKey: ["workers"] });
-        onOpenChange(false);
+      if (worker) {
+        await workersApi.update(worker.id, payload);
       } else {
-        console.error("Failed to save employee");
+        await workersApi.create(payload);
       }
+      
+      queryClient.invalidateQueries({ queryKey: ["workers"] });
+      onOpenChange(false);
     } catch (err) {
       console.error(err);
     } finally {
@@ -255,14 +250,14 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
                 </div>
                 <div className="col-span-2 sm:col-span-1">
                   <Label>Role</Label>
-                  <Select value={form.role} onValueChange={v => setForm({...form, role: v})}>
+                  <Select value={(form.role || "worker").toLowerCase()} onValueChange={v => setForm({...form, role: v})}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select role" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Worker">Worker</SelectItem>
-                      <SelectItem value="Operator">Operator</SelectItem>
-                      <SelectItem value="Supervisor">Supervisor</SelectItem>
-                      <SelectItem value="Manager">Manager</SelectItem>
-                      <SelectItem value="Engineer">Engineer</SelectItem>
+                      <SelectItem value="worker">Worker</SelectItem>
+                      <SelectItem value="operator">Operator</SelectItem>
+                      <SelectItem value="supervisor">Supervisor</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

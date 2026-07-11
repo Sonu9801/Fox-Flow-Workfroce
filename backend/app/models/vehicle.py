@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
-from app.models.associations import vehicle_worker_association
+from app.models.associations import vehicle_user_association
 
 class Vehicle(Base):
     __tablename__ = "vehicles"
@@ -62,8 +62,8 @@ class Vehicle(Base):
 
     # Relationships
     workers = relationship(
-        "Worker",
-        secondary=vehicle_worker_association,
+        "User",
+        secondary=vehicle_user_association,
         back_populates="vehicles"
     )
     qc_records = relationship("QCRecord", back_populates="vehicle", cascade="all, delete-orphan")

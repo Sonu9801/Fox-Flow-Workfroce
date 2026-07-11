@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useVehicles, useVerifyVehicle, useRejectVehicle } from "@/hooks/useQueries";
 import { ArrowLeft, CheckCircle2, XCircle, AlertCircle, Upload, Eye, FileText } from "lucide-react";
@@ -22,6 +22,24 @@ export default function VerificationPage() {
     driverMatch: false,
     conditionOk: false,
   });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedPhotos, setSelectedPhotos] = useState<File[]>([]);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedPhotos(Array.from(e.target.files));
+      alert(`${e.target.files.length} photo(s) selected for upload.`);
+    }
+  };
+
+  const handleDocumentView = (docType: string) => {
+    alert(`No ${docType} available for this vehicle yet.`);
+  };
 
   const [verifyData, setVerifyData] = useState({
     platformNumber: "",
@@ -267,11 +285,27 @@ export default function VerificationPage() {
                   <h2 className="font-semibold text-sm">Arrival Photos</h2>
                 </div>
                 <div className="p-5">
-                  <div className="border-2 border-dashed border-border rounded-lg p-6 flex flex-col items-center justify-center text-muted-foreground bg-muted/10 hover:bg-muted/30 transition-colors cursor-pointer">
+                  <div 
+                    onClick={handleUploadClick}
+                    className="border-2 border-dashed border-border rounded-lg p-6 flex flex-col items-center justify-center text-muted-foreground bg-muted/10 hover:bg-muted/30 transition-colors cursor-pointer"
+                  >
                     <Upload size={24} className="mb-2" />
                     <span className="text-sm font-medium">Upload Photos</span>
                     <span className="text-xs mt-1 text-center">Capture front, back, side & chassis no.</span>
                   </div>
+                  <input 
+                    type="file" 
+                    multiple 
+                    accept="image/*" 
+                    className="hidden" 
+                    ref={fileInputRef} 
+                    onChange={handlePhotoChange} 
+                  />
+                  {selectedPhotos.length > 0 && (
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      {selectedPhotos.length} photo(s) selected
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -280,14 +314,14 @@ export default function VerificationPage() {
                   <h2 className="font-semibold text-sm">OEM Documents</h2>
                 </div>
                 <div className="p-4 space-y-2">
-                  <button className="w-full flex items-center justify-between p-2 text-sm border border-border rounded hover:bg-muted/30">
+                  <button onClick={() => handleDocumentView("Invoice Document")} className="w-full flex items-center justify-between p-2 text-sm border border-border rounded hover:bg-muted/30">
                     <div className="flex items-center gap-2">
                       <FileText size={14} className="text-primary"/> 
                       Invoice Document
                     </div>
                     <Eye size={14} className="text-muted-foreground" />
                   </button>
-                  <button className="w-full flex items-center justify-between p-2 text-sm border border-border rounded hover:bg-muted/30">
+                  <button onClick={() => handleDocumentView("Delivery Challan")} className="w-full flex items-center justify-between p-2 text-sm border border-border rounded hover:bg-muted/30">
                     <div className="flex items-center gap-2">
                       <FileText size={14} className="text-primary"/> 
                       Delivery Challan

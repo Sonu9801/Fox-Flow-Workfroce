@@ -9,7 +9,7 @@ class ActivityEvent(Base):
     event_type = Column(String, nullable=False)  # e.g., worker_started, qc_passed, qc_failed, etc.
     description = Column(Text, nullable=False)
     vehicle_id = Column(Integer, ForeignKey("vehicles.id", ondelete="SET NULL"), nullable=True)
-    worker_id = Column(Integer, ForeignKey("workers.id", ondelete="SET NULL"), nullable=True)
+    worker_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     timestamp = Column(DateTime, nullable=False)
     
     # Audit log fields
@@ -20,4 +20,4 @@ class ActivityEvent(Base):
 
     # Relationships
     vehicle = relationship("Vehicle", back_populates="activities")
-    worker = relationship("Worker", back_populates="activities")
+    worker = relationship("User", back_populates="activities")

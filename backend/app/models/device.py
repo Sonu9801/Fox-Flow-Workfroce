@@ -10,10 +10,8 @@ class Device(Base):
     device_token = Column(String, unique=True, index=True, nullable=False)
     device_type = Column(String, nullable=True) # e.g., ios, android, web
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    worker_id = Column(Integer, ForeignKey("workers.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     last_active = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
     user = relationship("User", backref="devices")
-    worker = relationship("Worker", backref="devices")

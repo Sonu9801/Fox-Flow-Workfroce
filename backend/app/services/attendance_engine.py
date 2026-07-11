@@ -103,46 +103,48 @@ class PayrollSyncEngine:
                 worker_id=attendance.worker_id,
                 month=month_str,
                 base_salary=salary_profile.monthly_salary or 0,
-                days_present=0,
-                days_absent=0,
-                half_days=0,
-                ot_hours=0,
-                total_deductions=0,
-                net_salary=0,
                 status="draft"
             )
             db.add(payroll_record)
             
-        # We would ideally re-calculate the whole month here, but for simplicity we increment
-        # In a real system, it's safer to query all Attendance records for the month and sum them up.
-        # This prevents drift. Let's do that.
-        
         all_month_attendances = db.query(Attendance).filter(
             Attendance.worker_id == attendance.worker_id,
             Attendance.date.like(f"{month_str}-%")
         ).all()
         
-        present = 0
-        absent = 0
-        half = 0
-        total_ot = 0.0
+        present = 0; absent = 0; half = 0; late = 0;
+        leave = 0; sunday = 0; holiday = 0
+        total_ot = 0.0; total_hours = 0.0
         
         for att in all_month_attendances:
-            if att.status == "Present": present += 1
-            elif att.status == "Absent": absent += 1
-            elif att.status == "Half Day": half += 1
-            total_ot += att.ot_hours
+            s = (att.status or "").lower()
+            if s == "present": present += 1
+            elif s == "absent": absent += 1
+            elif s == "half day": half += 1
+            elif s == "leave" or s == "paid leave": leave += 1
+            
+            if att.late_minutes and att.late_minutes > 0: late += 1
+            if att.is_sunday: sunday += 1
+            
+            total_ot += (att.ot_hours or 0.0)
+            total_hours += (att.net_working_hours or 0.0)
             
         payroll_record.days_present = present
         payroll_record.days_absent = absent
         payroll_record.half_days = half
+        payroll_record.late_count = late
+        payroll_record.leave_days = leave
+        payroll_record.sunday_work = sunday
+        payroll_record.holiday_work = holiday
+        payroll_record.working_hours = total_hours
         payroll_record.ot_hours = total_ot
+        payroll_record.net_working_days = present + (half * 0.5) + leave
         
-        # Simple net calculation
         daily_rate = (payroll_record.base_salary / 30) if payroll_record.base_salary else (salary_profile.daily_wage or 0)
-        earned = (present * daily_rate) + (half * daily_rate * 0.5)
+        earned = payroll_record.net_working_days * daily_rate
         ot_earned = total_ot * salary_profile.ot_rate_per_hour
         
-        payroll_record.net_salary = earned + ot_earned - payroll_record.total_deductions
+        payroll_record.ot_amount = ot_earned
+        payroll_record.final_salary = earned + ot_earned - payroll_record.deductions
         
         db.commit()

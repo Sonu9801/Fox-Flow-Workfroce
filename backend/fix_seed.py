@@ -32,7 +32,7 @@ for i, line in enumerate(lines):
             inspector_name=inspector,
             inspected_at=now + timedelta(days=off),
             result=result,
-            defects_found=str(defects),
+            defects_found=defects,
             notes=notes,
             stage=stage
         )

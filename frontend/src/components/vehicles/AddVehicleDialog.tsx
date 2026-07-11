@@ -12,6 +12,8 @@ const MODELS_MAP: Record<string, string[]> = {
   "PV": ["PV-120", "PV-170", "PV- 220 City", "PV- 220 MAXX", "PV- 260 Strom", "PV-330", "Other"],
   "PIAGGIO": ["PIAGGIO", "Other"],
   "Montra Electric": ["Montra Electric", "Other"],
+  "TATA MOTORS": ["TATA MOTORS", "Other"],
+  "MAHINDRA": ["MAHINDRA", "Other"],
   "Other": ["Other"],
 };
 
@@ -197,7 +199,7 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false }: Ad
       oemName: finalOemName,
       productCategory: finalProductCategory,
       priority: form.priority,
-      currentStage: isOemSubmission ? "oem_submitted" : "received",
+      currentStage: isOemSubmission ? "oem" : "received",
       assignedWorkerIds: [],
       receivedAt: now,
       estimatedDelivery: form.estimatedDelivery
@@ -331,7 +333,8 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false }: Ad
                     <option value="JUPITER ELECTRIC MOBILITY">JUPITER ELECTRIC MOBILITY</option>
                     <option value="TVS MOTORS">TVS MOTORS</option>
                     <option value="E NEXT MOBILITY">E NEXT MOBILITY</option>
-                    <option value="E AUTO FARIDABAD">E AUTO FARIDABAD</option>
+                    <option value="TATA MOTORS">TATA MOTORS</option>
+                    <option value="MAHINDRA">MAHINDRA</option>
                     <option value="Other">Other</option>
                   </select>
                   <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />

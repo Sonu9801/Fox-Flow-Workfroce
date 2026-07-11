@@ -28,7 +28,7 @@ export default function WorkerLogin() {
       formData.append("username", mobileNumber);
       formData.append("password", password);
 
-      const res = await fetch("http://192.168.1.6:8000/api/auth/worker-login", {
+      const res = await fetch("/api/auth/worker-login", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -42,6 +42,7 @@ export default function WorkerLogin() {
 
       const data = await res.json();
       localStorage.setItem("worker_token", data.access_token);
+      localStorage.setItem("worker_refreshToken", data.refresh_token);
       localStorage.setItem("worker_info", JSON.stringify(data));
       
       toast.success(`Welcome back, ${data.name}`);

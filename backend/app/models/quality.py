@@ -29,7 +29,7 @@ class QCRecord(Base):
 
     # Relationships
     vehicle = relationship("Vehicle", back_populates="qc_records")
-    inspector = relationship("User")
+    inspector = relationship("User", foreign_keys=[inspector_id])
     defects = relationship("DefectRecord", back_populates="qc_record", cascade="all, delete-orphan")
 
 class DefectRecord(Base):
@@ -43,10 +43,10 @@ class DefectRecord(Base):
     category = Column(String, nullable=False)
     description = Column(Text, nullable=False)
     responsible_department = Column(String, nullable=True)
-    responsible_worker_id = Column(Integer, ForeignKey("workers.id", ondelete="SET NULL"), nullable=True)
+    responsible_worker_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     target_resolution_date = Column(DateTime, nullable=True)
     status = Column(String, default="Open") # Open, Resolved
     
     qc_record = relationship("QCRecord", back_populates="defects")
     vehicle = relationship("Vehicle")
-    worker = relationship("Worker")
+    worker = relationship("User", foreign_keys=[responsible_worker_id])

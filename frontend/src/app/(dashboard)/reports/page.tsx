@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { FileBarChart, Filter, Calendar as CalendarIcon, Printer } from "lucide-react";
-import { useVehicles, useWorkers, useQCRecords, useDispatchRecords, useActivities } from "@/hooks/useQueries";
+import { useVehicles, useWorkers, useQCRecords, useDispatchRecords, useActivities, useInvoices } from "@/hooks/useQueries";
 import { useAuthStore } from "@/store/authStore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { OemReportsTab } from "./components/OemReportsTab";
 import { ActivityLogsTab } from "./components/ActivityLogsTab";
 import { QualityReportsTab } from "./components/QualityReportsTab";
 import { DispatchReportsTab } from "./components/DispatchReportsTab";
+import { InvoiceReportsTab } from "./components/InvoiceReportsTab";
 
 export default function ReportsPage() {
   const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
@@ -23,8 +24,9 @@ export default function ReportsPage() {
   const { data: qcRecords = [], isLoading: isLoadingQC } = useQCRecords();
   const { data: dispatchRecords = [], isLoading: isLoadingDispatch } = useDispatchRecords();
   const { data: activities = [], isLoading: isLoadingActivities } = useActivities();
+  const { data: invoices = [], isLoading: isLoadingInvoices } = useInvoices();
   const role = useAuthStore(state => state.role);
-  const username = useAuthStore(state => state.username);
+  const username = useAuthStore(state => state.name);
 
   const [dateRange, setDateRange] = useState("Last 30 Days");
   const [showFilters, setShowFilters] = useState(false);
@@ -37,7 +39,7 @@ export default function ReportsPage() {
     status: "All"
   });
 
-  const isLoading = isLoadingVehicles || isLoadingWorkers || isLoadingQC || isLoadingDispatch || isLoadingActivities;
+  const isLoading = isLoadingVehicles || isLoadingWorkers || isLoadingQC || isLoadingDispatch || isLoadingActivities || isLoadingInvoices;
 
   // Security Filtering
   const filteredVehicles = role === "oem" 
@@ -191,6 +193,9 @@ export default function ReportsPage() {
               
               <TabsTrigger value="quality" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-max">Quality Control</TabsTrigger>
               <TabsTrigger value="dispatch" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-max">Dispatch</TabsTrigger>
+              {!isOem && !isWorker && (
+                <TabsTrigger value="invoices" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-max">Invoices</TabsTrigger>
+              )}
               
               {!isOem && !isWorker && (
                 <TabsTrigger value="oem" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-max">OEM</TabsTrigger>
@@ -239,6 +244,12 @@ export default function ReportsPage() {
             <TabsContent value="dispatch">
               <DispatchReportsTab dispatchRecords={filteredDispatch} dateRange={dateRange} filters={filters} />
             </TabsContent>
+
+            {!isOem && !isWorker && (
+              <TabsContent value="invoices">
+                <InvoiceReportsTab invoices={invoices} dateRange={dateRange} filters={filters} />
+              </TabsContent>
+            )}
             
             {!isOem && !isWorker && (
               <TabsContent value="oem">

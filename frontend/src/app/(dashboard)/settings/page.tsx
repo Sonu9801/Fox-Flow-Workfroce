@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/store/authStore";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -222,9 +225,18 @@ function SectionCard({
 }
 
 function ProfileSection() {
+  const { name: storeName, email: storeEmail, role: storeRole } = useAuthStore();
   const [editing, setEditing] = useState(false);
-  const [name, setName] = useState("Arjun Mehta");
+  const [name, setName] = useState(storeName || "Unknown User");
   const [draft, setDraft] = useState(name);
+
+  useEffect(() => {
+    if (storeName) {
+      setName(storeName);
+      setDraft(storeName);
+    }
+  }, [storeName]);
+
   const initials = name
     .split(" ")
     .map((n) => n[0])
@@ -232,10 +244,31 @@ function ProfileSection() {
     .toUpperCase()
     .slice(0, 2);
 
+  const queryClient = useQueryClient();
+  const setAuthData = useAuthStore((s) => s.setAuthData);
+
+  const updateMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await api.put("/auth/me", { name });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      setAuthData(data.access_token || useAuthStore.getState().token, {
+        email: data.email,
+        name: data.name,
+        role: data.role
+      });
+      setName(data.name);
+      setEditing(false);
+      toast.success("Profile saved");
+    },
+    onError: () => {
+      toast.error("Failed to save profile");
+    }
+  });
+
   const save = () => {
-    setName(draft);
-    setEditing(false);
-    toast.success("Profile saved");
+    updateMutation.mutate(draft);
   };
   const cancel = () => {
     setDraft(name);
@@ -277,7 +310,7 @@ function ProfileSection() {
               <div className="flex items-center gap-1.5 py-1">
                 <Mail size={13} className="text-muted-foreground shrink-0" />
                 <p className="text-sm text-muted-foreground">
-                  arjun.mehta@foxflow.in
+                  {storeEmail || "no-email@foxflow.com"}
                 </p>
               </div>
             </div>
@@ -285,7 +318,7 @@ function ProfileSection() {
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Role</Label>
             <div>
-              <RoleBadge userRole="Factory Owner" />
+              <RoleBadge userRole={storeRole || "operator"} />
             </div>
           </div>
         </div>
@@ -296,10 +329,11 @@ function ProfileSection() {
             <Button
               size="sm"
               onClick={save}
+              disabled={updateMutation.isPending}
               data-ocid="settings.profile.save_button"
               className="h-8 text-xs"
             >
-              <Check size={13} className="mr-1.5" /> Save
+              <Check size={13} className="mr-1.5" /> {updateMutation.isPending ? "Saving..." : "Save"}
             </Button>
             <Button
               size="sm"
@@ -328,24 +362,45 @@ function ProfileSection() {
 }
 
 function FactorySection() {
-  const [facilityName, setFacilityName] = useState(
-    "FoxFlow Manufacturing – Mumbai Unit 1",
-  );
-  const [address, setAddress] = useState(
-    "Plot 42, MIDC Industrial Area, Andheri East, Mumbai 400093",
-  );
-  const [hours, setHours] = useState(
-    "Mon–Sat 07:00–20:00, Sunday Emergency Only",
-  );
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["factorySettings"],
+    queryFn: async () => {
+      const res = await api.get("/settings/factory");
+      return res.data;
+    }
+  });
+
+  const [facilityName, setFacilityName] = useState("");
+  const [address, setAddress] = useState("");
+  const [hours, setHours] = useState("");
   const [timezone, setTimezone] = useState("Asia/Kolkata");
-  const [departments, setDepartments] = useState([
-    "Fabrication",
-    "Paint",
-    "QC",
-    "Dispatch",
-    "Stores",
-  ]);
+  const [departments, setDepartments] = useState<string[]>([]);
   const [newDept, setNewDept] = useState("");
+
+  useEffect(() => {
+    if (data) {
+      setFacilityName(data.facility_name);
+      setAddress(data.address);
+      setHours(data.operating_hours);
+      setTimezone(data.timezone);
+      setDepartments(data.departments || []);
+    }
+  }, [data]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await api.put("/settings/factory", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["factorySettings"] });
+      toast.success("Factory configuration saved");
+    },
+    onError: () => {
+      toast.error("Failed to save factory configuration");
+    }
+  });
 
   const addDept = () => {
     const d = newDept.trim();
@@ -356,7 +411,18 @@ function FactorySection() {
   };
   const removeDept = (d: string) =>
     setDepartments(departments.filter((x) => x !== d));
-  const save = () => toast.success("Factory configuration saved");
+    
+  const save = () => {
+    updateMutation.mutate({
+      facility_name: facilityName,
+      address,
+      operating_hours: hours,
+      timezone,
+      departments
+    });
+  };
+
+  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading factory settings...</div>;
 
   return (
     <SectionCard
@@ -459,10 +525,11 @@ function FactorySection() {
         <Button
           size="sm"
           onClick={save}
+          disabled={updateMutation.isPending}
           data-ocid="settings.factory.save_button"
           className="h-8 text-xs"
         >
-          <Check size={13} className="mr-1.5" /> Save Changes
+          <Check size={13} className="mr-1.5" /> {updateMutation.isPending ? "Saving..." : "Save Changes"}
         </Button>
       </div>
     </SectionCard>
@@ -470,30 +537,58 @@ function FactorySection() {
 }
 
 function TeamSection() {
-  const [team, setTeam] = useState(INITIAL_TEAM);
+  const queryClient = useQueryClient();
+  const { data: team = [], isLoading } = useQuery({
+    queryKey: ["teamMembers"],
+    queryFn: async () => {
+      const res = await api.get("/users");
+      return res.data;
+    }
+  });
+
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState(ROLES[3]);
 
+  const inviteMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await api.post("/users/invite", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teamMembers"] });
+      setInviteEmail("");
+      setInviteName("");
+      setShowInvite(false);
+      toast.success(`Invitation sent`);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.detail || "Failed to invite member");
+    }
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/users/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teamMembers"] });
+      toast.success("Member removed");
+    }
+  });
+
   const invite = () => {
-    if (!inviteEmail.trim()) return;
-    setTeam([
-      ...team,
-      {
-        id: Date.now(),
-        name: inviteEmail.split("@")[0],
-        email: inviteEmail,
-        role: inviteRole,
-      },
-    ]);
-    setInviteEmail("");
-    setShowInvite(false);
-    toast.success(`Invitation sent to ${inviteEmail}`);
+    if (!inviteEmail.trim() || !inviteName.trim()) return;
+    inviteMutation.mutate({ email: inviteEmail, name: inviteName, role: inviteRole });
   };
   const remove = (id: number) => {
-    setTeam(team.filter((m) => m.id !== id));
-    toast.success("Member removed");
+    if (confirm("Are you sure you want to remove this member?")) {
+      removeMutation.mutate(id);
+    }
   };
+
+  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading team members...</div>;
 
   return (
     <SectionCard
@@ -534,7 +629,13 @@ function TeamSection() {
                 <X size={14} />
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Input
+                placeholder="Name"
+                value={inviteName}
+                onChange={(e) => setInviteName(e.target.value)}
+                className="h-8 text-sm"
+              />
               <Input
                 placeholder="Email address"
                 value={inviteEmail}
@@ -562,10 +663,11 @@ function TeamSection() {
               <Button
                 size="sm"
                 onClick={invite}
+                disabled={inviteMutation.isPending}
                 className="h-8 text-xs"
                 data-ocid="settings.team.invite_confirm_button"
               >
-                Send Invite
+                {inviteMutation.isPending ? "Sending..." : "Send Invite"}
               </Button>
               <Button
                 size="sm"
@@ -639,15 +741,46 @@ function TeamSection() {
 }
 
 function PreferencesSection() {
+  const { data = {}, isLoading } = useQuery({
+    queryKey: ["userPreferences"],
+    queryFn: async () => {
+      const res = await api.get("/auth/preferences");
+      return res.data;
+    }
+  });
+
   const { theme, setTheme } = useTheme();
   const [defaultView, setDefaultView] = useState("Dashboard");
   const [notifs, setNotifs] = useState<Record<string, boolean>>(
     Object.fromEntries(NOTIF_PREFS.map((n) => [n.id, true])),
   );
 
+  useEffect(() => {
+    if (Object.keys(data).length > 0) {
+      if (data.theme) setTheme(data.theme);
+      if (data.defaultView) setDefaultView(data.defaultView);
+      if (data.notifs) setNotifs(data.notifs);
+    }
+  }, [data, setTheme]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await api.put("/auth/preferences", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Preferences saved");
+    }
+  });
+
   const toggleNotif = (id: string) =>
     setNotifs((prev) => ({ ...prev, [id]: !prev[id] }));
-  const save = () => toast.success("Preferences saved");
+    
+  const save = () => {
+    updateMutation.mutate({ theme, defaultView, notifs });
+  };
+
+  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading preferences...</div>;
 
   const themes: { value: string; label: string; icon: React.ReactNode }[] = [
     { value: "light", label: "Light", icon: <Sun size={13} /> },
@@ -732,10 +865,11 @@ function PreferencesSection() {
         <Button
           size="sm"
           onClick={save}
+          disabled={updateMutation.isPending}
           className="h-8 text-xs"
           data-ocid="settings.preferences.save_button"
         >
-          <Check size={13} className="mr-1.5" /> Save Preferences
+          <Check size={13} className="mr-1.5" /> {updateMutation.isPending ? "Saving..." : "Save Preferences"}
         </Button>
       </div>
     </SectionCard>
@@ -758,6 +892,22 @@ function SecuritySection() {
     toast.success("API key copied to clipboard");
   }, []);
 
+  const passwordMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await api.put("/auth/password", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      toast.success("Password updated successfully");
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.detail || "Failed to update password");
+    }
+  });
+
   const changePassword = () => {
     if (!current || !next || !confirm) {
       toast.error("All fields are required");
@@ -767,10 +917,7 @@ function SecuritySection() {
       toast.error("Passwords do not match");
       return;
     }
-    setCurrent("");
-    setNext("");
-    setConfirm("");
-    toast.success("Password updated successfully");
+    passwordMutation.mutate({ current_password: current, new_password: next });
   };
 
   function PwField({
@@ -871,11 +1018,11 @@ function SecuritySection() {
             <Button
               size="sm"
               onClick={changePassword}
-              type="button"
-              className="h-8 text-xs mt-1"
-              data-ocid="settings.security.change_password_button"
+              disabled={passwordMutation.isPending}
+              className="h-8 text-xs"
+              data-ocid="settings.security.password_save_button"
             >
-              <Check size={13} className="mr-1.5" /> Update Password
+              <Check size={13} className="mr-1.5" /> {passwordMutation.isPending ? "Updating..." : "Update Password"}
             </Button>
           </div>
         </div>

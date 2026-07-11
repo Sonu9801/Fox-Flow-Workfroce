@@ -70,7 +70,7 @@ const navGroups = [
     items: [
       { label: "Quality Control", href: "/quality-control", icon: CheckCircle2 },
       { label: "Dispatch", href: "/dispatch", icon: Truck },
-      { label: "Inventory", href: "/inventory", icon: Boxes },
+      { label: "Invoices", href: "/invoices", icon: Banknote },
     ]
   },
   {
@@ -87,7 +87,7 @@ const navGroups = [
 
 export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useUIStore();
-  const { username, role, initialize } = useAuthStore();
+  const { name, email, role, initialize } = useAuthStore();
   const pathname = usePathname();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     "Overview": true,
@@ -101,9 +101,9 @@ export function Sidebar() {
     initialize();
   }, [initialize]);
 
-  const displayUser = username ? username.toUpperCase() : "FM";
+  const displayUser = name ? name.toUpperCase() : "FM";
   const displayRole = role ? `${role.charAt(0).toUpperCase()}${role.slice(1)}` : "Factory Manager";
-  const displayEmail = username ? `${username}@foxflow.in` : "admin@foxflow.in";
+  const displayEmail = email ? email : "admin@foxflow.in";
 
   const toggleGroup = (title: string) => {
     setExpandedGroups(prev => ({

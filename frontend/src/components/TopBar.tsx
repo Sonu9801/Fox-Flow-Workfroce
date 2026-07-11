@@ -21,7 +21,7 @@ export function TopBar() {
   const { data: notifications = [] } = useNotifications();
   const markClickedMutation = useMarkNotificationClicked();
   const markAllReadMutation = useMarkAllNotificationsRead();
-  const { username, role, logout } = useAuthStore();
+  const { name, email, role, logout } = useAuthStore();
   
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -66,9 +66,9 @@ export function TopBar() {
     info: "bg-primary/20 text-primary",
   };
 
-  const displayUser = username ? username.toUpperCase() : "FM";
+  const displayUser = name ? name.toUpperCase() : "FM";
   const displayRole = role ? `${role.charAt(0).toUpperCase()}${role.slice(1)}` : "Factory Manager";
-  const displayEmail = username ? `${username}@foxflow.in` : "admin@foxflow.in";
+  const displayEmail = email ? email : "admin@foxflow.in";
 
   return (
     <header className="h-14 flex items-center gap-3 px-4 bg-card border-b border-border shadow-subtle flex-shrink-0 z-50">

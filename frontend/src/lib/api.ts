@@ -1,6 +1,11 @@
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.1.6:8000/api";
+const getApiUrl = () => {
+  if (typeof window === "undefined") return process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+  return "/api";
+};
+
+const API_URL = getApiUrl();
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -15,7 +20,7 @@ import { useAuthStore } from "@/store/authStore";
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("worker_token");
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -66,7 +71,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null;
+        const refreshToken = typeof window !== "undefined" ? (localStorage.getItem("refreshToken") || localStorage.getItem("worker_refreshToken")) : null;
         if (!refreshToken) {
           throw new Error("No refresh token available");
         }
@@ -75,7 +80,19 @@ api.interceptors.response.use(
         const newToken = response.data.access_token;
         
         if (typeof window !== "undefined") {
-          useAuthStore.getState().updateToken(newToken);
+          if (localStorage.getItem("worker_token")) {
+            localStorage.setItem("worker_token", newToken);
+            const infoStr = localStorage.getItem("worker_info");
+            if (infoStr) {
+              try {
+                const info = JSON.parse(infoStr);
+                info.access_token = newToken;
+                localStorage.setItem("worker_info", JSON.stringify(info));
+              } catch (e) {}
+            }
+          } else {
+            useAuthStore.getState().updateToken(newToken);
+          }
         }
         
         processQueue(null, newToken);
@@ -84,8 +101,14 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         if (typeof window !== "undefined") {
-          useAuthStore.getState().logout();
-          window.location.href = '/login';
+          const isWorker = !!localStorage.getItem("worker_token");
+          if (isWorker) {
+            localStorage.clear();
+            window.location.href = '/workforce/login';
+          } else {
+            useAuthStore.getState().logout();
+            window.location.href = '/login';
+          }
         }
         return Promise.reject(refreshError);
       } finally {
@@ -98,20 +121,16 @@ api.interceptors.response.use(
 );
 
 export const authApi = {
-  login: async (username: string, password: string) => {
-    const formData = new URLSearchParams();
-    formData.append("username", username);
-    formData.append("password", password);
-    const response = await api.post("/auth/login", formData, {
-      headers: { 
-        "Content-Type": "application/x-www-form-urlencoded",
-        "ngrok-skip-browser-warning": "true"
-      },
-    });
+  register: async (email: string, name: string, role = "operator") => {
+    const response = await api.post("/auth/register", { email, name, role });
     return response.data;
   },
-  register: async (username: string, password: string, role = "operator") => {
-    const response = await api.post("/auth/register", { username, password, role });
+  requestOtp: async (email: string) => {
+    const response = await api.post("/auth/request-otp", { email });
+    return response.data;
+  },
+  verifyOtp: async (email: string, otp_code: string) => {
+    const response = await api.post("/auth/verify-otp", { email, otp_code });
     return response.data;
   },
   refresh: async (refreshToken: string) => {
@@ -165,7 +184,7 @@ export const vehiclesApi = {
 
 export const workersApi = {
   getAll: async () => {
-    const response = await api.get("/workers/");
+    const response = await api.get("/workers");
     return response.data;
   },
   getOne: async (id: number | string) => {
@@ -173,7 +192,7 @@ export const workersApi = {
     return response.data;
   },
   create: async (data: any) => {
-    const response = await api.post("/workers/", data);
+    const response = await api.post("/workers", data);
     return response.data;
   },
   update: async (id: number | string, data: any) => {
@@ -248,21 +267,37 @@ export const dispatchApi = {
   },
 };
 
-export const inventoryApi = {
+export const invoicesApi = {
   getAll: async () => {
-    const response = await api.get("/inventory/");
+    const response = await api.get("/invoices");
+    return response.data;
+  },
+  getOne: async (id: number | string) => {
+    const response = await api.get(`/invoices/${id}`);
+    return response.data;
+  },
+  getDashboardStats: async () => {
+    const response = await api.get("/invoices/dashboard-stats");
+    return response.data;
+  },
+  getAnalytics: async () => {
+    const response = await api.get("/invoices/analytics");
+    return response.data;
+  },
+  upload: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post("/invoices/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return response.data;
   },
   create: async (data: any) => {
-    const response = await api.post("/inventory/", data);
+    const response = await api.post("/invoices", data);
     return response.data;
   },
   update: async (id: number | string, data: any) => {
-    const response = await api.put(`/inventory/${id}`, data);
-    return response.data;
-  },
-  adjustStock: async (id: number | string, quantity: number) => {
-    const response = await api.patch(`/inventory/${id}/stock`, { quantity });
+    const response = await api.patch(`/invoices/${id}`, data);
     return response.data;
   },
 };
@@ -322,6 +357,57 @@ export const attendanceApi = {
     const response = await api.put(`/attendance/${id}`, data);
     return response.data;
   },
+  getWorkerSummary: async (workerId: string | number) => {
+    const response = await api.get(`/attendance/worker/${workerId}/summary`);
+    return response.data;
+  },
+  getWorkerHistory: async (workerId: string | number) => {
+    const response = await api.get(`/attendance/worker/${workerId}/history`);
+    return response.data;
+  },
+  getWorkerMonthlySummary: async (workerId: string | number, month?: string) => {
+    const url = month ? `/attendance/worker/${workerId}/monthly-summary?month=${month}` : `/attendance/worker/${workerId}/monthly-summary`;
+    const response = await api.get(url);
+    return response.data;
+  },
+  submitCorrection: async (workerId: string | number, dateStr: string, type: string, notes: string) => {
+    const response = await api.post(`/attendance/exceptions?worker_id=${workerId}&date_str=${dateStr}&type=${encodeURIComponent(type)}&notes=${encodeURIComponent(notes)}`);
+    return response.data;
+  },
+  applyLeave: async (workerId: string | number, startDate: string, endDate: string, type: string, reason: string) => {
+    const response = await api.post(`/leave/`, {
+      worker_id: Number(workerId),
+      start_date: startDate,
+      end_date: endDate,
+      leave_type: type,
+      reason: reason
+    });
+    return response.data;
+  },
+  getLeaveHistory: async (workerId: string | number) => {
+    const response = await api.get(`/leave/worker/${workerId}`);
+    return response.data;
+  },
+  updateProfile: async (workerId: string | number, profileData: any) => {
+    const response = await api.put(`/workers/${workerId}/profile_edit`, profileData);
+    return response.data;
+  },
+  getDocuments: async (workerId: string | number) => {
+    const response = await api.get(`/documents/worker/${workerId}`);
+    return response.data;
+  },
+  getSalaryHistory: async (workerId: string | number) => {
+    const response = await api.get(`/payroll/worker/${workerId}`);
+    return response.data;
+  },
+  getTeamSummary: async (managerId: string | number) => {
+    const response = await api.get(`/team/summary/${managerId}`);
+    return response.data;
+  },
+  getPendingRequests: async (managerId: string | number) => {
+    const response = await api.get(`/team/pending-requests/${managerId}`);
+    return response.data;
+  }
 };
 
 export const jobsApi = {

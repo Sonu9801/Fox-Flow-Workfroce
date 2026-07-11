@@ -3,7 +3,7 @@ from app.auth import get_current_active_user
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
 from app.database import get_db
-from app.models.worker import Worker
+from app.models.user import User
 from app.models.attendance import Attendance, AttendanceLog, AttendanceException
 from app.models.attendance_settings import AttendanceSettings
 from app.models.salary_profile import SalaryProfile
@@ -30,7 +30,7 @@ async def punch_attendance(
     photo: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
-    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    worker = db.query(User).filter(User.id == worker_id).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
 
@@ -145,6 +145,104 @@ async def punch_attendance(
 
     return {"message": f"Successfully {action}", "photo_url": photo_url}
 
+@router.get("/worker/{worker_id}/summary")
+def get_worker_summary(worker_id: int, db: Session = Depends(get_db)):
+    today = datetime.now(timezone.utc).date()
+    record = db.query(Attendance).filter(
+        Attendance.worker_id == worker_id, 
+        Attendance.date == today
+    ).first()
+
+    if not record:
+        return {
+            "status": "Not Punched In",
+            "net_working_hours": 0.0,
+            "break_time": 0.0,
+            "late_minutes": 0,
+            "ot_hours": 0.0,
+            "punch_in": None,
+            "punch_out": None
+        }
+
+    return {
+        "status": record.status or "Not Punched In",
+        "net_working_hours": record.net_working_hours or 0.0,
+        "break_time": record.break_time or 0.0,
+        "late_minutes": record.late_minutes or 0,
+        "ot_hours": record.ot_hours or 0.0,
+        "punch_in": record.punch_in.isoformat() if record.punch_in else None,
+        "punch_out": record.punch_out.isoformat() if record.punch_out else None
+    }
+
+@router.get("/worker/{worker_id}/history")
+def get_worker_history(worker_id: int, db: Session = Depends(get_db)):
+    thirty_days_ago = datetime.now(timezone.utc).date() - timedelta(days=30)
+    records = db.query(Attendance).filter(
+        Attendance.worker_id == worker_id,
+        Attendance.date >= thirty_days_ago
+    ).order_by(Attendance.date.desc()).all()
+    
+    return [
+        {
+            "id": r.id,
+            "date": r.date.isoformat(),
+            "status": r.status,
+            "punch_in": r.punch_in.isoformat() if r.punch_in else None,
+            "punch_out": r.punch_out.isoformat() if r.punch_out else None,
+            "net_working_hours": r.net_working_hours,
+            "ot_hours": r.ot_hours,
+            "late_minutes": r.late_minutes
+        }
+        for r in records
+    ]
+
+@router.get("/worker/{worker_id}/monthly-summary")
+def get_worker_monthly_summary(worker_id: int, month: str = None, db: Session = Depends(get_db)):
+    # month format: YYYY-MM
+    target_date = datetime.strptime(month, "%Y-%m").date() if month else datetime.now(timezone.utc).date()
+    
+    import calendar
+    _, last_day = calendar.monthrange(target_date.year, target_date.month)
+    start_date = target_date.replace(day=1)
+    end_date = target_date.replace(day=last_day)
+    
+    records = db.query(Attendance).filter(
+        Attendance.worker_id == worker_id,
+        Attendance.date >= start_date,
+        Attendance.date <= end_date
+    ).all()
+    
+    summary = {
+        "present_days": 0,
+        "absent_days": 0,
+        "half_days": 0,
+        "leave_days": 0,
+        "late_count": 0,
+        "ot_hours": 0.0,
+        "working_hours": 0.0,
+        "sunday_work": 0,
+        "holiday_work": 0,
+        "net_attendance_percent": 0.0
+    }
+    
+    for r in records:
+        status = (r.status or "").lower()
+        if status == "present": summary["present_days"] += 1
+        elif status == "absent": summary["absent_days"] += 1
+        elif status == "half day": summary["half_days"] += 1
+        elif status == "leave": summary["leave_days"] += 1
+        
+        if r.late_minutes and r.late_minutes > 0: summary["late_count"] += 1
+        if r.ot_hours: summary["ot_hours"] += r.ot_hours
+        if r.net_working_hours: summary["working_hours"] += r.net_working_hours
+        if r.is_sunday: summary["sunday_work"] += 1
+        
+    total_working_days = summary["present_days"] + summary["absent_days"] + summary["half_days"] + summary["leave_days"]
+    if total_working_days > 0:
+        summary["net_attendance_percent"] = round((summary["present_days"] + (summary["half_days"] * 0.5)) / total_working_days * 100, 1)
+        
+    return summary
+
 @router.get("/")
 def get_attendance(db: Session = Depends(get_db)):
     return db.query(Attendance).all()
@@ -156,7 +254,7 @@ def get_detailed_logs(
 ):
     query = db.query(Attendance).order_by(Attendance.date.desc())
     if user.role == "supervisor":
-        query = query.join(Worker).filter(Worker.department == user.department)
+        query = query.join(User).filter(User.department == user.department)
         
     records = query.all()
     results = []
@@ -225,6 +323,31 @@ async def approve_exception(id: int, payload: ApproveExceptionPayload, db: Sessi
     db.commit()
     db.refresh(exc)
     
+    # Process the correction on the attendance record
+    att = db.query(Attendance).filter(Attendance.worker_id == exc.worker_id, Attendance.date == exc.date).first()
+    if att:
+        if exc.exception_type == "Forgot Punch In":
+            # For simplicity, we just set a default punch in
+            from datetime import time
+            att.punch_in = datetime.combine(exc.date, time(9, 0)).replace(tzinfo=timezone.utc)
+            att.status = "Present"
+        elif exc.exception_type == "Forgot Punch Out":
+            from datetime import time
+            att.punch_out = datetime.combine(exc.date, time(18, 0)).replace(tzinfo=timezone.utc)
+            att.net_working_hours = 9.0
+            
+        db.commit()
+        
+        # Sync Payroll
+        from app.services.attendance_engine import PayrollSyncEngine
+        from app.models.salary_profile import SalaryProfile
+        sp = db.query(SalaryProfile).filter(SalaryProfile.worker_id == exc.worker_id).first()
+        PayrollSyncEngine.sync_daily_attendance(db, att, sp)
+        
+        from app.routers.websocket import manager
+        import asyncio
+        asyncio.create_task(manager.broadcast({"type": "ATTENDANCE_UPDATE", "payload": {"worker_id": exc.worker_id}}))
+    
     from app.services.audit import log_audit_event
     
     await log_audit_event(
@@ -233,7 +356,7 @@ async def approve_exception(id: int, payload: ApproveExceptionPayload, db: Sessi
         reason=payload.reason, old_value={"status": old_status}, new_value={"status": "Approved"}, worker_id=exc.worker_id
     )
     
-    return {"message": "Exception approved"}
+    return {"message": "Exception approved and payroll synced"}
 
 from pydantic import BaseModel
 from typing import Optional
@@ -303,12 +426,12 @@ def get_analytics(
     today = now.date()
     
     # Calculate daily stats
-    query_workers = db.query(Worker)
+    query_workers = db.query(User).filter(User.employee_id.isnot(None))
     query_today = db.query(Attendance).filter(Attendance.date == today)
     
     if user.role == "supervisor":
-        query_workers = query_workers.filter(Worker.department == user.department)
-        query_today = query_today.join(Worker).filter(Worker.department == user.department)
+        query_workers = query_workers.filter(User.department == user.department)
+        query_today = query_today.join(User).filter(User.department == user.department)
 
     all_workers = query_workers.count()
     today_records = query_today.all()

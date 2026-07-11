@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useAttendanceAnalytics, useAttendanceLogs } from "@/hooks/useQueries";
+import AttendanceDetailsDrawer from "./AttendanceDetailsDrawer";
 import { Worker } from "@/types";
 import { 
   Users, UserCheck, UserX, Clock, Calendar, Briefcase, 
@@ -38,11 +39,30 @@ const MOCK_LIVE_FEED = [
   { time: "11:00 AM", text: "Worker Punch Out", type: "out" },
 ];
 
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-card text-foreground border border-border p-3 rounded-lg shadow-lg min-w-[120px]">
+        {label && <p className="text-sm font-semibold mb-2">{label}</p>}
+        {payload.map((entry: any, index: number) => (
+          <div key={index} className="flex items-center gap-2 text-sm">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color || entry.fill || "#3b82f6" }} />
+            <span className="text-muted-foreground capitalize">{entry.name}:</span>
+            <span className="font-medium">{entry.value}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function DashboardTab({ workers, isLoading }: { workers: Worker[], isLoading: boolean }) {
   const [dateRange, setDateRange] = useState("Today");
   const [showFilters, setShowFilters] = useState(false);
   const [filterDept, setFilterDept] = useState("All");
   const [filterType, setFilterType] = useState("All");
+  const [selectedRecord, setSelectedRecord] = useState<any>(null);
 
   // Summary logic (using mock metrics for demo completeness as per user request)
   const { data: analytics } = useAttendanceAnalytics();
@@ -62,6 +82,9 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
   const absentPercent = totalEmployees > 0 ? Math.round((absentToday / totalEmployees) * 100) : 0;
   const latePercent = presentToday > 0 ? Math.round((lateEmployees / presentToday) * 100) : 0;
   const monthlyAvg = 92;
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todaysLogs = (logs || []).filter((l: any) => l.date === todayStr);
   
   // Build a basic live feed from today's logs
   const liveFeed = (logs || []).slice(0, 5).map((log: any) => {
@@ -224,9 +247,7 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                 <XAxis dataKey="day" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                <RechartsTooltip 
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-                />
+                <RechartsTooltip content={<CustomTooltip />} />
                 <Area type="monotone" dataKey="present" stroke="#10b981" fillOpacity={1} fill="url(#colorPresent)" strokeWidth={3} />
                 <Line type="monotone" dataKey="absent" stroke="#ef4444" strokeWidth={2} dot={false} />
               </AreaChart>
@@ -278,7 +299,7 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--color-border)" />
                 <XAxis type="number" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis dataKey="name" type="category" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--foreground))' }} />
+                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
                 <Legend />
                 <Bar dataKey="present" name="Present" fill="#10b981" radius={[0, 4, 4, 0]} barSize={12} />
                 <Bar dataKey="ot" name="OT Running" fill="#a855f7" radius={[0, 4, 4, 0]} barSize={12} />
@@ -348,86 +369,43 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {/* Mock Rows */}
-              <tr className="hover:bg-muted/20 transition-colors">
-                <td className="px-5 py-3 font-medium text-foreground">John Doe</td>
-                <td className="px-5 py-3 text-muted-foreground">Fabrication</td>
-                <td className="px-5 py-3">08:55 AM</td>
-                <td className="px-5 py-3">--</td>
-                <td className="px-5 py-3">
-                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-500">
-                    Present
-                  </span>
-                </td>
-                <td className="px-5 py-3">4h 15m</td>
-                <td className="px-5 py-3 flex gap-2">
-                  <MapPin size={16} className="text-emerald-500" />
-                  <Camera size={16} className="text-emerald-500" />
-                </td>
-                <td className="px-5 py-3">
-                  <button className="text-primary hover:underline text-xs font-medium">View</button>
-                </td>
-              </tr>
-              <tr className="hover:bg-muted/20 transition-colors">
-                <td className="px-5 py-3 font-medium text-foreground">Amit Singh</td>
-                <td className="px-5 py-3 text-muted-foreground">Paint</td>
-                <td className="px-5 py-3">10:15 AM</td>
-                <td className="px-5 py-3">--</td>
-                <td className="px-5 py-3">
-                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
-                    Half Day
-                  </span>
-                </td>
-                <td className="px-5 py-3">2h 55m</td>
-                <td className="px-5 py-3 flex gap-2">
-                  <MapPin size={16} className="text-emerald-500" />
-                  <Camera size={16} className="text-red-500" />
-                </td>
-                <td className="px-5 py-3">
-                  <button className="text-primary hover:underline text-xs font-medium">View</button>
-                </td>
-              </tr>
-              <tr className="hover:bg-muted/20 transition-colors bg-red-500/5">
-                <td className="px-5 py-3 font-medium text-foreground">Rahul Verma</td>
-                <td className="px-5 py-3 text-muted-foreground">Assembly</td>
-                <td className="px-5 py-3">--</td>
-                <td className="px-5 py-3">--</td>
-                <td className="px-5 py-3">
-                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-red-500/10 text-red-500">
-                    Absent
-                  </span>
-                </td>
-                <td className="px-5 py-3">0h 0m</td>
-                <td className="px-5 py-3 flex gap-2">
-                  <AlertCircle size={16} className="text-muted-foreground" />
-                </td>
-                <td className="px-5 py-3">
-                  <button className="text-primary hover:underline text-xs font-medium">View</button>
-                </td>
-              </tr>
-              <tr className="hover:bg-muted/20 transition-colors">
-                <td className="px-5 py-3 font-medium text-foreground">Vikram Sharma</td>
-                <td className="px-5 py-3 text-muted-foreground">Dispatch</td>
-                <td className="px-5 py-3">08:45 AM</td>
-                <td className="px-5 py-3">--</td>
-                <td className="px-5 py-3">
-                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-500/10 text-purple-500">
-                    OT Running
-                  </span>
-                </td>
-                <td className="px-5 py-3 font-medium text-purple-500">9h 30m</td>
-                <td className="px-5 py-3 flex gap-2">
-                  <MapPin size={16} className="text-emerald-500" />
-                  <Camera size={16} className="text-emerald-500" />
-                </td>
-                <td className="px-5 py-3">
-                  <button className="text-primary hover:underline text-xs font-medium">View</button>
-                </td>
-              </tr>
+              {todaysLogs.length === 0 ? (
+                <tr><td colSpan={8} className="px-5 py-8 text-center text-muted-foreground">No attendance records for today.</td></tr>
+              ) : todaysLogs.map((row: any) => (
+                <tr key={row.id} className="hover:bg-muted/20 transition-colors">
+                  <td className="px-5 py-3 font-medium text-foreground">{row.employee_name}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{row.department}</td>
+                  <td className="px-5 py-3">{row.punch_in ? new Date(row.punch_in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--'}</td>
+                  <td className="px-5 py-3">{row.punch_out ? new Date(row.punch_out).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--'}</td>
+                  <td className="px-5 py-3">
+                     <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium 
+                        ${row.status === 'Present' ? 'bg-emerald-500/10 text-emerald-500' : 
+                          row.status === 'Half Day' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' :
+                          row.status === 'Late' ? 'bg-orange-500/10 text-orange-500' :
+                          'bg-red-500/10 text-red-500'}`}>
+                       {row.status}
+                     </span>
+                  </td>
+                  <td className="px-5 py-3 font-medium">{row.net_working_hours > 0 ? `${row.net_working_hours}h` : '0h'}</td>
+                  <td className="px-5 py-3 flex gap-2">
+                    <MapPin size={16} className={row.location_status === 'Verified' ? "text-emerald-500" : "text-muted-foreground"} />
+                    <Camera size={16} className={row.photo_status === 'Verified' ? "text-emerald-500" : "text-muted-foreground"} />
+                  </td>
+                  <td className="px-5 py-3">
+                    <button onClick={() => setSelectedRecord(row)} className="text-primary hover:underline text-xs font-medium">View</button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       </div>
+      
+      <AttendanceDetailsDrawer 
+        open={!!selectedRecord} 
+        onOpenChange={(open: boolean) => !open && setSelectedRecord(null)} 
+        record={selectedRecord} 
+      />
     </div>
   );
 }

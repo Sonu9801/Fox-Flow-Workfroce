@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database import get_db
 from app.models.vehicle import Vehicle
-from app.models.worker import Worker
+from app.models.user import User
 from app.schemas.vehicle import VehicleCreate, VehicleResponse, VehicleUpdate
 from app.services.websocket_manager import manager
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/vehicles", tags=["vehicles"], dependencies=[Depends(
 def get_vehicles(db: Session = Depends(get_db), current_user = Depends(get_current_active_user)):
     query = db.query(Vehicle)
     if current_user.role == "oem":
-        query = query.filter(Vehicle.oem_name.ilike(f"%{current_user.username}%"))
+        query = query.filter(Vehicle.oem_name.ilike(f"%{current_user.name}%"))
     return query.order_by(Vehicle.id).all()
 
 @router.get("/{vehicle_id}", response_model=VehicleResponse)
@@ -35,7 +35,7 @@ async def create_vehicle(vehicle_in: VehicleCreate, db: Session = Depends(get_db
     
     # Query and associate workers
     if assigned_worker_ids:
-        workers = db.query(Worker).filter(Worker.id.in_(assigned_worker_ids)).all()
+        workers = db.query(User).filter(User.id.in_(assigned_worker_ids)).all()
         vehicle.workers = workers
         
     db.add(vehicle)
@@ -58,14 +58,14 @@ async def create_oem_dispatch(vehicle_in: VehicleCreate, db: Session = Depends(g
     # Exclude assigned_worker_ids from the kwargs
     vehicle_data = vehicle_in.model_dump(exclude={"assigned_worker_ids"})
     
-    # FOR OEM DISPATCH: Always force status to 'oem_submitted'
-    vehicle_data["current_stage"] = "oem_submitted"
+    # FOR OEM DISPATCH: Always force status to 'oem'
+    vehicle_data["current_stage"] = "oem"
     
     vehicle = Vehicle(**vehicle_data)
     
     # Query and associate workers
     if assigned_worker_ids:
-        workers = db.query(Worker).filter(Worker.id.in_(assigned_worker_ids)).all()
+        workers = db.query(User).filter(User.id.in_(assigned_worker_ids)).all()
         vehicle.workers = workers
         
     db.add(vehicle)
@@ -121,7 +121,7 @@ async def update_vehicle(vehicle_id: int, vehicle_in: VehicleUpdate, db: Session
         setattr(vehicle, key, value)
         
     if assigned_worker_ids is not None:
-        workers = db.query(Worker).filter(Worker.id.in_(assigned_worker_ids)).all()
+        workers = db.query(User).filter(User.id.in_(assigned_worker_ids)).all()
         vehicle.workers = workers
         
     db.commit()
@@ -131,7 +131,7 @@ async def update_vehicle(vehicle_id: int, vehicle_in: VehicleUpdate, db: Session
     from app.services.audit import log_audit_event
     await log_audit_event(
         db, "vehicle_updated", f"Vehicle {vehicle.tracking_id} updated",
-        edited_by=getattr(current_user, "username", "System"),
+        edited_by=getattr(current_user, "email", "System"),
         reason=reason, old_value=old_data, new_value=new_data, vehicle_id=vehicle.id
     )
     
@@ -197,7 +197,7 @@ async def update_vehicle_stage(
     from app.services.audit import log_audit_event
     await log_audit_event(
         db, "vehicle_stage_updated", f"Vehicle {vehicle.tracking_id} stage changed from {old_stage} to {stage}",
-        edited_by=getattr(current_user, "username", "System"),
+        edited_by=getattr(current_user, "name", "System"),
         reason=reason or "Stage Update", old_value=old_data, new_value=new_data, vehicle_id=vehicle.id
     )
     
@@ -250,7 +250,7 @@ async def verify_vehicle(vehicle_id: int, payload: VerifyPayload, db: Session = 
         vehicle.verification_status = "approved"
         vehicle.verified_at = datetime.now()
         vehicle.gate_entry_time = datetime.now()
-        vehicle.verified_by = current_user.username
+        vehicle.verified_by = getattr(current_user, "name", "System")
         vehicle.progress_percent = 0
         vehicle.verification_notes = payload.remarks
         

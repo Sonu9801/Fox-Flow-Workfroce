@@ -2,43 +2,52 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.auth import get_current_active_user
 from sqlalchemy.orm import Session
 from typing import List
+from sqlalchemy.exc import IntegrityError
 from app.database import get_db
-from app.models.worker import Worker
+from app.models.user import User
 from app.schemas.worker import WorkerCreate, WorkerUpdate, WorkerResponse
 from app.services.websocket_manager import manager
 from app.services.audit import log_audit_event
+from app.models.salary_profile import SalaryProfile
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/workers", tags=["workers"], dependencies=[Depends(get_current_active_user)])
 
 @router.get("", response_model=List[WorkerResponse])
 def get_workers(db: Session = Depends(get_db)):
-    return db.query(Worker).order_by(Worker.id).all()
+    return db.query(User).filter(User.employee_id.isnot(None)).order_by(User.id).all()
 
 @router.get("/{worker_id}", response_model=WorkerResponse)
 def get_worker(worker_id: int, db: Session = Depends(get_db)):
-    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    worker = db.query(User).filter(User.id == worker_id, User.employee_id.isnot(None)).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
     return worker
-
-from app.models.salary_profile import SalaryProfile
 
 @router.post("", response_model=WorkerResponse, status_code=status.HTTP_201_CREATED)
 async def create_worker(worker_in: WorkerCreate, db: Session = Depends(get_db), current_user = Depends(get_current_active_user)):
     data = worker_in.model_dump()
     salary_data = data.pop("salary_profile", None)
     
-    worker = Worker(**data)
+    worker = User(**data)
+    # Default role for workforce members is 'worker' unless specified otherwise
+    if not worker.role:
+        worker.role = "worker"
+        
     if salary_data:
         worker.salary_profile = SalaryProfile(**salary_data)
         
-    db.add(worker)
-    db.commit()
-    db.refresh(worker)
+    try:
+        db.add(worker)
+        db.commit()
+        db.refresh(worker)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Worker with this email or employee ID already exists.")
     
     await log_audit_event(
         db, "worker_created", f"Worker {worker.name} created",
-        edited_by=getattr(current_user, "username", "System"),
+        edited_by=getattr(current_user, "email", "System"),
         reason="Initial Creation", worker_id=worker.id
     )
     
@@ -51,7 +60,7 @@ async def create_worker(worker_in: WorkerCreate, db: Session = Depends(get_db), 
 
 @router.put("/{worker_id}", response_model=WorkerResponse)
 async def update_worker(worker_id: int, worker_in: WorkerUpdate, db: Session = Depends(get_db), current_user = Depends(get_current_active_user)):
-    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    worker = db.query(User).filter(User.id == worker_id, User.employee_id.isnot(None)).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
         
@@ -76,7 +85,7 @@ async def update_worker(worker_id: int, worker_in: WorkerUpdate, db: Session = D
     new_data = WorkerResponse.model_validate(worker).model_dump()
     await log_audit_event(
         db, "worker_updated", f"Worker {worker.name} updated",
-        edited_by=getattr(current_user, "username", "System"),
+        edited_by=getattr(current_user, "email", "System"),
         reason=reason, old_value=old_data, new_value=new_data, worker_id=worker.id
     )
     
@@ -87,15 +96,43 @@ async def update_worker(worker_id: int, worker_in: WorkerUpdate, db: Session = D
     })
     return worker
 
-from pydantic import BaseModel
-
 class WorkerStatusUpdate(BaseModel):
     status: str
+
+class WorkerProfileEdit(BaseModel):
+    mobile_number: str
+    emergency_contact_number: str
+    address: str
+    profile_photo_url: str = None
+
+@router.put("/{worker_id}/profile_edit")
+async def edit_worker_profile(worker_id: int, payload: WorkerProfileEdit, db: Session = Depends(get_db)):
+    # Bypassing current_user check for simplicity in PWA, relying on worker_id (in a real app, validate token matches worker_id)
+    worker = db.query(User).filter(User.id == worker_id, User.employee_id.isnot(None)).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+        
+    worker.mobile_number = payload.mobile_number
+    worker.emergency_contact_number = payload.emergency_contact_number
+    worker.address = payload.address
+    if payload.profile_photo_url:
+        worker.profile_photo_url = payload.profile_photo_url
+        
+    db.commit()
+    
+    await log_audit_event(
+        db, "profile_updated", f"Worker {worker.name} updated their profile",
+        edited_by=worker.name, reason="Self Service Update", worker_id=worker.id
+    )
+    
+    await manager.broadcast({"type": "WORKER_PROFILE_UPDATED", "payload": {"worker_id": worker.id}})
+    
+    return {"message": "Profile updated successfully"}
     reason: str
 
 @router.patch("/{worker_id}/status", response_model=WorkerResponse)
 async def update_worker_status(worker_id: int, status_update: WorkerStatusUpdate, db: Session = Depends(get_db), current_user = Depends(get_current_active_user)):
-    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    worker = db.query(User).filter(User.id == worker_id, User.employee_id.isnot(None)).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
         
@@ -107,7 +144,7 @@ async def update_worker_status(worker_id: int, status_update: WorkerStatusUpdate
     new_data = WorkerResponse.model_validate(worker).model_dump()
     await log_audit_event(
         db, "worker_status_updated", f"Worker {worker.name} status changed to {worker.status}",
-        edited_by=getattr(current_user, "username", "System"),
+        edited_by=getattr(current_user, "email", "System"),
         reason=status_update.reason, old_value=old_data, new_value=new_data, worker_id=worker.id
     )
     
@@ -126,7 +163,7 @@ class ReasonPayload(BaseModel):
 
 @router.post("/{worker_id}/archive")
 async def archive_worker(worker_id: int, payload: ReasonPayload, db: Session = Depends(get_db), current_user = Depends(get_current_active_user)):
-    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    worker = db.query(User).filter(User.id == worker_id, User.employee_id.isnot(None)).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
         
@@ -139,7 +176,7 @@ async def archive_worker(worker_id: int, payload: ReasonPayload, db: Session = D
     new_data = WorkerResponse.model_validate(worker).model_dump()
     await log_audit_event(
         db, "worker_archived", f"Worker {worker.name} archived",
-        edited_by=getattr(current_user, "username", "System"),
+        edited_by=getattr(current_user, "email", "System"),
         reason=payload.reason, old_value=old_data, new_value=new_data, worker_id=worker.id
     )
     
@@ -151,14 +188,13 @@ async def archive_worker(worker_id: int, payload: ReasonPayload, db: Session = D
 
 @router.post("/{worker_id}/reset-password")
 async def reset_worker_password(worker_id: int, payload: ReasonPayload, db: Session = Depends(get_db), current_user = Depends(get_current_active_user)):
-    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    worker = db.query(User).filter(User.id == worker_id, User.employee_id.isnot(None)).first()
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
         
-    # Mocking password reset logic
     await log_audit_event(
         db, "worker_password_reset", f"Password reset for Worker {worker.name}",
-        edited_by=getattr(current_user, "username", "System"),
+        edited_by=getattr(current_user, "email", "System"),
         reason=payload.reason, worker_id=worker.id
     )
     

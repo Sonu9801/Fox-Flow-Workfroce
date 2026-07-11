@@ -57,8 +57,10 @@ function makeDispatchByOEM(range: Range): { oem: string; count: number }[] {
     { oem: "MONTRA ELECTRIC", count: Math.round(7 * multiplier * (0.8 + seed(2) * 0.4)) },
     { oem: "BAJAJ AUTO", count: Math.round(6 * multiplier * (0.8 + seed(3) * 0.4)) },
     { oem: "PIAGGIO", count: Math.round(5 * multiplier * (0.8 + seed(4) * 0.4)) },
-    { oem: "TVS MOTORS", count: Math.round(4 * multiplier * (0.8 + seed(5) * 0.4)) },
-    { oem: "E NEXT MOBILITY", count: Math.round(3 * multiplier * (0.8 + seed(6) * 0.4)) },
+    { oem: "TATA MOTORS", count: Math.round(5 * multiplier * (0.8 + seed(5) * 0.4)) },
+    { oem: "MAHINDRA", count: Math.round(4 * multiplier * (0.8 + seed(6) * 0.4)) },
+    { oem: "TVS MOTORS", count: Math.round(4 * multiplier * (0.8 + seed(7) * 0.4)) },
+    { oem: "E NEXT MOBILITY", count: Math.round(3 * multiplier * (0.8 + seed(8) * 0.4)) },
   ];
 }
 

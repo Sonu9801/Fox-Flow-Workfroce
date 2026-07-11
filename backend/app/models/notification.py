@@ -9,7 +9,7 @@ class Notification(Base):
     type = Column(String, default="info") # error, warning, success, info
     title = Column(String, index=True)
     message = Column(String)
-    module = Column(String) # e.g., production, attendance, inventory
+    module = Column(String) # e.g., production, attendance, invoices
     reference_id = Column(String, nullable=True) # e.g., tracking ID or worker ID
     target_url = Column(String, nullable=True) # e.g., /production?tab=incoming&vehicleId=FF-1234
     

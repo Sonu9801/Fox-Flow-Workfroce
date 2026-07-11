@@ -7,7 +7,7 @@ class Attendance(Base):
     __tablename__ = "attendance"
 
     id = Column(Integer, primary_key=True, index=True)
-    worker_id = Column(Integer, ForeignKey("workers.id"))
+    worker_id = Column(Integer, ForeignKey("users.id"))
     date = Column(Date, nullable=False)
     punch_in = Column(DateTime)
     punch_out = Column(DateTime, nullable=True)
@@ -24,14 +24,14 @@ class Attendance(Base):
     ot_hours = Column(Float, default=0.0)
     is_sunday = Column(Boolean, default=False)
 
-    worker = relationship("Worker", back_populates="attendance_records")
+    worker = relationship("User", back_populates="attendance_records", foreign_keys=[worker_id])
     exceptions = relationship("AttendanceException", back_populates="attendance", cascade="all, delete-orphan")
 
 class AttendanceLog(Base):
     __tablename__ = "attendance_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    worker_id = Column(Integer, ForeignKey("workers.id"))
+    worker_id = Column(Integer, ForeignKey("users.id"))
     action = Column(String)  # Punch In, Punch Out
     latitude = Column(Float)
     longitude = Column(Float)
@@ -48,13 +48,13 @@ class AttendanceLog(Base):
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     is_valid = Column(Boolean, default=True)
 
-    worker = relationship("Worker", back_populates="attendance_logs")
+    worker = relationship("User", back_populates="attendance_logs")
 
 class AttendanceException(Base):
     __tablename__ = "attendance_exceptions"
 
     id = Column(Integer, primary_key=True, index=True)
-    worker_id = Column(Integer, ForeignKey("workers.id"))
+    worker_id = Column(Integer, ForeignKey("users.id"))
     attendance_id = Column(Integer, ForeignKey("attendance.id"), nullable=True)
     date = Column(Date, nullable=False)
     
@@ -66,7 +66,7 @@ class AttendanceException(Base):
     override_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    worker = relationship("Worker")
+    worker = relationship("User", foreign_keys=[worker_id])
     attendance = relationship("Attendance", back_populates="exceptions")
     approved_by = relationship("User", foreign_keys=[approved_by_id])
     override_by = relationship("User", foreign_keys=[override_by_id])

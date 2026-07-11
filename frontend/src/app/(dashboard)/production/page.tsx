@@ -235,8 +235,8 @@ function VehicleCard({
           ],
         )}
       >
-        {isUrgent && (
-          <span className="absolute -top-1 -right-1 w-3 h-3">
+        {(isUrgent || normStage === "oem") && (
+          <span className="absolute -top-1 -right-1 w-3 h-3 z-10">
             <span className="absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75 animate-ping" />
             <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive" />
           </span>

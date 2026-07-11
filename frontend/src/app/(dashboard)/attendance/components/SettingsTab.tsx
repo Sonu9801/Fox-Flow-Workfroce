@@ -56,13 +56,8 @@ export default function SettingsTab() {
 
   const updateMutation = useMutation({
     mutationFn: async (updatedSettings: any) => {
-      const res = await fetch("http://192.168.1.6:8000/api/settings/attendance", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedSettings)
-      });
-      if (!res.ok) throw new Error("Failed to update settings");
-      return res.json();
+      const res = await api.put("/settings/attendance", updatedSettings);
+      return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["attendanceSettings"] });

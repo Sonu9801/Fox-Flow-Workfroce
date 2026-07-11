@@ -45,7 +45,7 @@ const navGroups = [
     items: [
       { label: "Quality Control", href: "/quality-control", icon: CheckCircle2 },
       { label: "Dispatch", href: "/dispatch", icon: Truck },
-      { label: "Inventory", href: "/inventory", icon: Boxes },
+      { label: "Invoices", href: "/invoices", icon: Banknote },
     ]
   },
   {
@@ -66,7 +66,7 @@ export function MobileTopBar() {
   const { data: notifications = [] } = useNotifications();
   const markClickedMutation = useMarkNotificationClicked();
   const markAllReadMutation = useMarkAllNotificationsRead();
-  const { username, role, logout } = useAuthStore();
+  const { name, email, role, logout } = useAuthStore();
   
   const [showNotifications, setShowNotifications] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
@@ -103,7 +103,7 @@ export function MobileTopBar() {
     router.push("/login");
   };
 
-  const displayEmail = username ? `${username.toLowerCase()}@foxflow.in` : "admin@foxflow.in";
+  const displayEmail = email ? email : "admin@foxflow.in";
 
   return (
     <>
@@ -254,10 +254,10 @@ export function MobileTopBar() {
               <div className="flex items-center justify-between p-4 border-b border-border">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                    {username ? username.slice(0, 2).toUpperCase() : "FM"}
+                    {name ? name.slice(0, 2).toUpperCase() : "FM"}
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground leading-none">{username?.toUpperCase() || "ADMIN"}</p>
+                    <p className="font-semibold text-foreground leading-none">{name || "ADMIN"}</p>
                     <p className="text-xs text-muted-foreground mt-1">{displayEmail}</p>
                   </div>
                 </div>

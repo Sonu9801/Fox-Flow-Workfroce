@@ -7,6 +7,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     role: Optional[str] = "operator"
+    dealer_name: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: int

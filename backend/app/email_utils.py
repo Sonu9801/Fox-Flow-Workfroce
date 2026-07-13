@@ -25,7 +25,7 @@ def send_otp_email(to_email: str, otp_code: str, user_name: str = "User"):
             Use the verification code below to sign in to your FoxFlow account. This code expires in <strong style="color: #e4e4e7;">5 minutes</strong>.
           </p>
           <div style="background: #09090b; border: 1px solid #27272a; border-radius: 12px; padding: 24px; text-align: center; margin: 0 0 24px;">
-            <span style="font-size: 36px; font-weight: 800; letter-spacing: 12px; color: #7c3aed; font-family: 'Courier New', monospace;">{"&nbsp;&nbsp;".join(list(otp_code))}</span>
+            <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #7c3aed; font-family: 'Courier New', monospace; white-space: nowrap;">{otp_code}</span>
           </div>
           <p style="font-size: 12px; color: #71717a; margin: 0; line-height: 1.5;">
             If you did not request this code, please ignore this email. Do not share this code with anyone.
@@ -47,4 +47,4 @@ def send_otp_email(to_email: str, otp_code: str, user_name: str = "User"):
     with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
         server.starttls()
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-        server.sendmail(settings.SMTP_FROM, to_email, msg.as_string())
+        server.sendmail(settings.SMTP_FROM, [to_email], msg.as_string())

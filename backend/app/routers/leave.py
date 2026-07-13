@@ -19,7 +19,7 @@ class LeaveRequestCreate(BaseModel):
     reason: Optional[str] = None
 
 @router.post("/")
-def create_leave_request(payload: LeaveRequestCreate, db: Session = Depends(get_db)):
+async def create_leave_request(payload: LeaveRequestCreate, db: Session = Depends(get_db)):
     start_val = datetime.strptime(payload.start_date, "%Y-%m-%d").date()
     end_val = datetime.strptime(payload.end_date, "%Y-%m-%d").date()
     
@@ -33,6 +33,11 @@ def create_leave_request(payload: LeaveRequestCreate, db: Session = Depends(get_
     db.add(req)
     db.commit()
     db.refresh(req)
+    
+    from app.services.websocket_manager import manager
+    import asyncio
+    asyncio.create_task(manager.broadcast({"type": "LEAVE_UPDATE", "data": {"worker_id": req.worker_id}}))
+    
     return {"message": "Leave request submitted successfully", "id": req.id}
 
 @router.get("/worker/{worker_id}")
@@ -82,7 +87,7 @@ async def update_leave_status(leave_id: int, payload: LeaveStatusUpdate, db: Ses
             curr_date += timedelta(days=1)
     
     # Broadcast to WebSocket
-    from app.routers.websocket import manager
+    from app.services.websocket_manager import manager
     import asyncio
     asyncio.create_task(manager.broadcast({"type": "LEAVE_UPDATE", "payload": {"worker_id": req.worker_id}}))
     asyncio.create_task(manager.broadcast({"type": "PAYROLL_UPDATE", "payload": {"worker_id": req.worker_id}}))

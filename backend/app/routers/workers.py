@@ -1,4 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+import os
+import shutil
+import uuid
+from app.config import settings
 from app.auth import get_current_active_user
 from sqlalchemy.orm import Session
 from typing import List
@@ -34,6 +38,11 @@ async def create_worker(worker_in: WorkerCreate, db: Session = Depends(get_db), 
     if not worker.role:
         worker.role = "worker"
         
+    # Auto-generate email if missing or empty to prevent IntegrityError on unique, non-null email column
+    if not worker.email or worker.email.strip() == "":
+        import uuid
+        worker.email = f"{worker.employee_id or uuid.uuid4().hex[:8]}@foxflow.internal"
+        
     if salary_data:
         worker.salary_profile = SalaryProfile(**salary_data)
         
@@ -41,9 +50,14 @@ async def create_worker(worker_in: WorkerCreate, db: Session = Depends(get_db), 
         db.add(worker)
         db.commit()
         db.refresh(worker)
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
+        print("IntegrityError creating worker:", str(e))
         raise HTTPException(status_code=400, detail="Worker with this email or employee ID already exists.")
+    except Exception as e:
+        db.rollback()
+        print("Unknown error creating worker:", str(e))
+        raise HTTPException(status_code=400, detail=str(e))
     
     await log_audit_event(
         db, "worker_created", f"Worker {worker.name} created",
@@ -100,10 +114,37 @@ class WorkerStatusUpdate(BaseModel):
     status: str
 
 class WorkerProfileEdit(BaseModel):
+    name: str = None
     mobile_number: str
     emergency_contact_number: str
     address: str
     profile_photo_url: str = None
+
+@router.post("/{worker_id}/upload-photo")
+async def upload_worker_photo(worker_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    worker = db.query(User).filter(User.id == worker_id, User.employee_id.isnot(None)).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+        
+    ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    filename = f"worker_{worker_id}_{uuid.uuid4().hex}.{ext}"
+    file_path = os.path.join(settings.UPLOAD_DIR, filename)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    photo_url = f"{settings.API_BASE_URL}/uploads/{filename}"
+    worker.profile_photo_url = photo_url
+    db.commit()
+    
+    await log_audit_event(
+        db, "profile_photo_updated", f"Worker {worker.name} updated their profile photo",
+        edited_by=worker.name, reason="Photo Upload", worker_id=worker.id
+    )
+    
+    await manager.broadcast({"type": "WORKER_PROFILE_UPDATED", "payload": {"worker_id": worker.id}})
+    
+    return {"message": "Photo uploaded successfully", "profile_photo_url": photo_url}
 
 @router.put("/{worker_id}/profile_edit")
 async def edit_worker_profile(worker_id: int, payload: WorkerProfileEdit, db: Session = Depends(get_db)):
@@ -115,6 +156,8 @@ async def edit_worker_profile(worker_id: int, payload: WorkerProfileEdit, db: Se
     worker.mobile_number = payload.mobile_number
     worker.emergency_contact_number = payload.emergency_contact_number
     worker.address = payload.address
+    if payload.name:
+        worker.name = payload.name
     if payload.profile_photo_url:
         worker.profile_photo_url = payload.profile_photo_url
         

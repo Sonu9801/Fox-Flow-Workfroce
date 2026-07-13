@@ -5,7 +5,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import engine, Base
-from app.routers import auth, users, workers, vehicles, quality, dispatch, activities, websocket, attendance, payroll, oem_schedule, attendance_settings, factory_settings, notifications, jobs, invoices, leave, documents, team
+from app.routers import auth, users, workers, worker, vehicles, quality, dispatch, activities, websocket, attendance, payroll, oem_schedule, attendance_settings, factory_settings, notifications, jobs, invoices, leave, documents, team, components
+from app.models.component_task import ComponentTask
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
@@ -48,6 +49,8 @@ app.include_router(jobs.router, prefix="/api")
 app.include_router(leave.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(team.router, prefix="/api")
+app.include_router(worker.router, prefix="/api")
+app.include_router(components.router, prefix="/api")
 app.include_router(websocket.router, prefix="")
 
 @app.get("/api/health")

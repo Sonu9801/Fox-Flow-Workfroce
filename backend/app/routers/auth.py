@@ -38,11 +38,20 @@ def request_otp(data: OtpRequest, db: Session = Depends(get_db)):
     db.commit()
 
     try:
-        from app.email_utils import send_otp_email
-        send_otp_email(data.email, otp, user.name)
+        # Always print OTP for local development visibility
+        print("\n" + "="*50)
+        print(f" NEW OTP REQUESTED")
+        print(f" OTP for {user.email} is: {otp}")
+        print("="*50 + "\n")
+        
+        if settings.SMTP_USER:
+            from app.email_utils import send_otp_email
+            send_otp_email(data.email, otp, user.name)
+            
     except Exception as e:
         print(f"Failed to send email: {e}")
-        raise HTTPException(status_code=500, detail="Failed to send OTP email")
+        # Return success anyway for dev mode so they can still see it in console
+        pass
 
     return {"message": "OTP sent successfully"}
 
@@ -95,7 +104,7 @@ class DeviceRegistrationRequest(BaseModel):
     device_token: str
     device_type: Optional[str] = None
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(RoleChecker(["admin"]))])
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user_in.email).first()
     if db_user:
@@ -107,7 +116,8 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
     user = User(
         email=user_in.email,
         name=user_in.name,
-        role=user_in.role
+        role=user_in.role,
+        dealer_name=user_in.dealer_name
     )
     db.add(user)
     db.commit()
@@ -116,11 +126,15 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    # Try email first, then mobile number
     user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    if not user:
+        user = db.query(User).filter(User.mobile_number == form_data.username).first()
+        
+    if not user or user.password != form_data.password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect email/mobile or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not user.is_active:

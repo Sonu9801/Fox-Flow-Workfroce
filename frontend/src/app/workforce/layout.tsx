@@ -7,8 +7,14 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata = {
   title: "FoxFlow Workforce",
   description: "Worker Mobile App for Factory Floor",
+};
+
+export const viewport = {
   themeColor: "#000000",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function WorkforceLayout({

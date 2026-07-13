@@ -9,9 +9,10 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
-    role = Column(String, default="operator")  # admin, operator, supervisor, viewer, worker
+    role = Column(String, default="operator")  # admin, operator, supervisor, viewer, worker, oem
     is_active = Column(Boolean, default=True)
     preferences = Column(JSON, nullable=True)
+    dealer_name = Column(String, nullable=True)
 
     # OTP Authentication fields
     otp_code = Column(String, nullable=True)
@@ -35,7 +36,7 @@ class User(Base):
     
     profile_photo_url = Column(String, nullable=True)
     shift_type = Column(String, default="General Shift")
-    shift_start = Column(String, default="09:00:00")
+    shift_start = Column(String, default="09:30:00")
     shift_end = Column(String, default="18:00:00")
     
     emergency_contact_name = Column(String, nullable=True)

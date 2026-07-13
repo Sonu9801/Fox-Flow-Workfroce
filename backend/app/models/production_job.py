@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from app.database import Base
 from app.models.associations import job_user_association
@@ -17,6 +17,22 @@ class ProductionJob(Base):
     photo_proof_url = Column(Text, nullable=True)
     comments = Column(Text, nullable=True)
     
+    # New fields for Worker PWA
+    job_number = Column(String, unique=True, index=True, nullable=True)
+    customer = Column(String, nullable=True)
+    site = Column(String, nullable=True)
+    priority = Column(String, default="Normal") # Normal, High, Urgent
+    instructions = Column(Text, nullable=True)
+    required_material = Column(Text, nullable=True)
+    machine_required = Column(String, nullable=True)
+    qc_checklist_url = Column(String, nullable=True)
+    drawing_url = Column(String, nullable=True)
+    progress_percent = Column(Integer, default=0)
+    assigned_date = Column(DateTime, nullable=True)
+    expected_completion = Column(DateTime, nullable=True)
+    
+    # Photos Relationship
+    photos = relationship("JobPhoto", back_populates="job", cascade="all, delete-orphan")
     vehicle = relationship("Vehicle", back_populates="production_jobs")
     supervisor = relationship("User", foreign_keys=[supervisor_id])
     workers = relationship(

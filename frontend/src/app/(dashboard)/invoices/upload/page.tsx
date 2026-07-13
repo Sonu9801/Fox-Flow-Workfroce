@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useUploadInvoice, useCreateInvoice } from "@/hooks/useQueries";
 import { UploadCloud, Camera, Image as ImageIcon, FileText, ChevronLeft, Loader2, CheckCircle2 } from "lucide-react";
@@ -9,6 +9,8 @@ import { toast } from "sonner";
 
 export default function InvoiceUploadPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -66,7 +68,7 @@ export default function InvoiceUploadPage() {
 
       await createMutation.mutateAsync(payload);
       toast.success("Invoice saved successfully");
-      router.push("/invoices");
+      router.push(returnTo || "/invoices");
     } catch (error: any) {
       const detail = error.response?.data?.detail;
       const debugMsg = `Err: ${error.message}. Data: ${JSON.stringify(error.response?.data)}`;
@@ -96,7 +98,13 @@ export default function InvoiceUploadPage() {
   return (
     <div className="p-4 md:p-6 pb-24" data-ocid="invoices.upload">
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full">
+        <Button variant="ghost" size="icon" onClick={() => {
+          if (returnTo) {
+            router.push(returnTo);
+          } else {
+            router.back();
+          }
+        }} className="rounded-full">
           <ChevronLeft size={20} />
         </Button>
         <div>

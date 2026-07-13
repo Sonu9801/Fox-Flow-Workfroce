@@ -71,8 +71,20 @@ export function useWebSocket() {
               break;
             case "ATTENDANCE_UPDATE":
               queryClient.invalidateQueries({ queryKey: ["attendanceAnalytics"] });
+              queryClient.invalidateQueries({ queryKey: ["attendanceExceptions"] });
               queryClient.invalidateQueries({ queryKey: ["attendanceLogs"] });
               queryClient.invalidateQueries({ queryKey: ["workers"] });
+              queryClient.invalidateQueries({ queryKey: ["workerSummary"] });
+              queryClient.invalidateQueries({ queryKey: ["workerHistory"] });
+              queryClient.invalidateQueries({ queryKey: ["workerMonthlySummary"] });
+              break;
+            case "LEAVE_UPDATE":
+              queryClient.invalidateQueries({ queryKey: ["leaves"] });
+              queryClient.invalidateQueries({ queryKey: ["attendanceAnalytics"] });
+              break;
+            case "JOB_ASSIGNED":
+            case "JOB_STATUS_CHANGED":
+              queryClient.invalidateQueries({ queryKey: ["workerJobs"] });
               break;
             default:
               break;

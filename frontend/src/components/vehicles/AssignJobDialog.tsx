@@ -22,7 +22,6 @@ interface AssignJobDialogProps {
 export function AssignJobDialog({ vehicle, stage, workers, open, onClose, onAssignComplete }: AssignJobDialogProps) {
   const { user } = useAuthStore() as any;
   const [selectedWorkerIds, setSelectedWorkerIds] = useState<Set<number>>(new Set());
-  const [expectedDuration, setExpectedDuration] = useState<number>(120);
   const [loading, setLoading] = useState(false);
   
   // Only show active workforce
@@ -30,8 +29,15 @@ export function AssignJobDialog({ vehicle, stage, workers, open, onClose, onAssi
 
   const toggleWorker = (id: number) => {
     const next = new Set(selectedWorkerIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      if (next.size >= 2) {
+        toast.error("Maximum 2 workers can be assigned per platform (Company Policy)");
+        return;
+      }
+      next.add(id);
+    }
     setSelectedWorkerIds(next);
   };
 
@@ -48,7 +54,7 @@ export function AssignJobDialog({ vehicle, stage, workers, open, onClose, onAssi
         vehicle_id: parseInt(vehicle.id, 10),
         stage: stage,
         worker_ids: Array.from(selectedWorkerIds),
-        expected_duration_minutes: expectedDuration,
+        expected_duration_minutes: 120, // Default duration
         supervisor_id: user?.id,
       });
       toast.success(`Job assigned successfully for stage ${stage}`);
@@ -72,12 +78,12 @@ export function AssignJobDialog({ vehicle, stage, workers, open, onClose, onAssi
         
         <div className="grid gap-4 py-4">
           <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-2 block">Expected Duration (Minutes)</label>
+            <label className="text-xs font-semibold text-muted-foreground mb-2 block">Platform No.</label>
             <Input 
-              type="number" 
-              value={expectedDuration} 
-              onChange={(e) => setExpectedDuration(parseInt(e.target.value) || 120)} 
-              min={15}
+              type="text" 
+              value={vehicle ? `(PF No.- ${vehicle.platformNumber || vehicle.trackingId})` : ""} 
+              disabled
+              className="bg-muted/50 font-medium"
             />
           </div>
           

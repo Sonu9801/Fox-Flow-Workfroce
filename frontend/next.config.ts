@@ -21,7 +21,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  allowedDevOrigins: ['assembled-skip-tvs-yrs.trycloudflare.com', 'virtue-donor-intake-gadgets.trycloudflare.com', 'singing-norfolk-serve-rehabilitation.trycloudflare.com', 'tim-computers-throat-associations.trycloudflare.com', '192.168.1.6', 'ids-sydney-anchor-hammer.trycloudflare.com', '10.19.107.83', 'last-resist-redeem-professionals.trycloudflare.com', 'deepness-computer-batboy.ngrok-free.dev', 'papers-manager-indicated-opened.trycloudflare.com', 'mainstream-anderson-jerry-terry.trycloudflare.com', 'quality-parts-den-referring.trycloudflare.com', 'programs-tagged-flexibility-proc.trycloudflare.com'],
+  allowedDevOrigins: ['baskets-ranks-use-gets.trycloudflare.com', 'necessary-doc-knights-dana.trycloudflare.com', 'sig-after-vampire-sitting.trycloudflare.com', 'need-glasgow-everything-ocean.trycloudflare.com', '192.168.1.6', '10.19.107.83', 'deepness-computer-batboy.ngrok-free.dev'],
   async rewrites() {
     return [
       {

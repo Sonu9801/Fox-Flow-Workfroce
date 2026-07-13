@@ -17,6 +17,7 @@ import { ActivityLogsTab } from "./components/ActivityLogsTab";
 import { QualityReportsTab } from "./components/QualityReportsTab";
 import { DispatchReportsTab } from "./components/DispatchReportsTab";
 import { InvoiceReportsTab } from "./components/InvoiceReportsTab";
+import { ComponentReportsTab } from "./components/ComponentReportsTab";
 
 export default function ReportsPage() {
   const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
@@ -188,6 +189,7 @@ export default function ReportsPage() {
                   <TabsTrigger value="attendance" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-max">Attendance</TabsTrigger>
                   <TabsTrigger value="payroll" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-max">Payroll</TabsTrigger>
                   <TabsTrigger value="workers" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-max">Workers</TabsTrigger>
+                  <TabsTrigger value="components" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-max">Components</TabsTrigger>
                 </>
               )}
               
@@ -233,6 +235,9 @@ export default function ReportsPage() {
                 </TabsContent>
                 <TabsContent value="workers">
                   <WorkersReportsTab workers={workers} dateRange={dateRange} filters={filters} />
+                </TabsContent>
+                <TabsContent value="components">
+                  <ComponentReportsTab />
                 </TabsContent>
               </>
             )}

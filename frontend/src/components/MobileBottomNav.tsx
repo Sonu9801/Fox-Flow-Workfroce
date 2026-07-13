@@ -33,8 +33,16 @@ export function MobileBottomNav() {
       { label: "Portal", href: "/oem-portal", icon: Building2 },
       { label: "Settings", href: "/settings", icon: Settings },
     ];
+  } else if (currentRole === 'supervisor') {
+    navItems = [
+      { label: "Home", href: "/", icon: LayoutDashboard },
+      { label: "Production", href: "/production?category=All+Categories", icon: Factory },
+      { label: "Workers", href: "/workers", icon: Users },
+      { label: "Attendance", href: "/attendance", icon: Clock },
+      { label: "Menu", href: "/reports", icon: Menu },
+    ];
   } else {
-    // Manager, Owner, Supervisor
+    // Manager, Owner, Admin
     navItems = [
       { label: "Home", href: "/", icon: LayoutDashboard },
       { label: "Production", href: "/production?category=All+Categories", icon: Factory },

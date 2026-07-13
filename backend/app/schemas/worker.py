@@ -20,7 +20,7 @@ class WorkerBase(CamelModel):
     
     profile_photo_url: Optional[str] = None
     shift_type: str = "General Shift"
-    shift_start: str = "09:00:00"
+    shift_start: str = "09:30:00"
     shift_end: str = "18:00:00"
     
     emergency_contact_name: Optional[str] = None
@@ -50,3 +50,74 @@ class WorkerUpdate(WorkerBase):
 class WorkerResponse(WorkerBase):
     id: int
     salary_profile: Optional[SalaryProfileBase] = None
+
+from datetime import datetime
+from typing import List
+
+class JobPhotoBase(CamelModel):
+    photo_url: str
+    photo_type: str
+    timestamp: Optional[datetime] = None
+    gps_lat: Optional[float] = None
+    gps_lng: Optional[float] = None
+    remarks: Optional[str] = None
+
+class JobPhotoCreate(JobPhotoBase):
+    pass
+
+class JobPhoto(JobPhotoBase):
+    id: int
+    job_id: int
+    uploaded_by_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+class WorkerJobBase(CamelModel):
+    id: int
+    vehicle_id: int
+    stage: str
+    status: str
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    job_number: Optional[str] = None
+    customer: Optional[str] = None
+    site: Optional[str] = None
+    priority: Optional[str] = None
+    instructions: Optional[str] = None
+    required_material: Optional[str] = None
+    machine_required: Optional[str] = None
+    qc_checklist_url: Optional[str] = None
+    drawing_url: Optional[str] = None
+    progress_percent: Optional[int] = None
+    assigned_date: Optional[datetime] = None
+    expected_completion: Optional[datetime] = None
+
+class WorkerJob(WorkerJobBase):
+    photos: List[JobPhoto] = []
+
+    class Config:
+        from_attributes = True
+
+class WorkerDashboardStats(CamelModel):
+    present_days: int
+    absent_days: int
+    leave_days: int
+    ot_hours: float
+    sunday_worked: int
+    total_assigned_jobs: int
+    pending_jobs: int
+    in_progress_jobs: int
+    completed_today: int
+
+class PerformanceStats(CamelModel):
+    jobs_completed: int
+    avg_completion_time_hrs: float
+    attendance_percent: float
+    ot_hours: float
+    performance_score: int
+    monthly_trend: str
+
+class PhotoUploadResponse(CamelModel):
+    message: str
+    photo: JobPhoto

@@ -18,6 +18,7 @@ from app.models.shift import Shift
 from app.models.holiday import Holiday
 from app.models.invoice import Invoice
 from app.models.invoice_audit import InvoiceAudit
+from app.models.job_photo import JobPhoto
 
 __all__ = [
     "Base",
@@ -42,4 +43,5 @@ __all__ = [
     "Holiday",
     "Invoice",
     "InvoiceAudit",
+    "JobPhoto",
 ]

@@ -33,6 +33,10 @@ export default function DashboardLayout({
         window.location.href = "/workforce";
         return;
       }
+      if (role?.toLowerCase() === 'oem' && window.location.pathname === '/') {
+        window.location.href = "/oem-portal";
+        return;
+      }
       setLoading(false);
     }
   }, [initialize, router]);

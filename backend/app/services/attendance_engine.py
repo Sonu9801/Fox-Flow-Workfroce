@@ -23,7 +23,7 @@ def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 class GeofenceEngine:
     @staticmethod
     def validate_punch(settings: AttendanceSettings, lat: float, lng: float, accuracy: float = None) -> tuple[bool, str]:
-        if accuracy and accuracy > 100:
+        if accuracy and accuracy > 50:
             return False, "GPS accuracy too low."
             
         distance = calculate_distance(lat, lng, settings.latitude, settings.longitude)
@@ -68,7 +68,24 @@ class TimeEngine:
         
         if punch_out:
             total_seconds = (punch_out - punch_in).total_seconds()
+            
+            # Deduct 30 mins (0.5 hours) lunch break if worker was present between 01:00 PM and 01:30 PM
+            lunch_start = punch_in.replace(hour=13, minute=0, second=0)
+            lunch_end = punch_in.replace(hour=13, minute=30, second=0)
+            if punch_in <= lunch_start and punch_out >= lunch_end:
+                total_seconds -= 1800 # 30 mins in seconds
+                
             result["net_working_hours"] = round(total_seconds / 3600.0, 2)
+            
+            # Re-evaluate status based on total worked hours
+            shift_length_hours = (shift_end - shift_start).total_seconds() / 3600.0
+            if shift_length_hours <= 0:
+                shift_length_hours = 9.0
+                
+            if result["net_working_hours"] < (shift_length_hours / 2):
+                result["status"] = "Absent"
+            elif result["net_working_hours"] < (shift_length_hours - 1.0) and result["status"] != "Absent":
+                result["status"] = "Half Day"
             
             if punch_out < shift_end:
                 result["early_exit_minutes"] = int((shift_end - punch_out).total_seconds() / 60)
@@ -140,11 +157,11 @@ class PayrollSyncEngine:
         payroll_record.ot_hours = total_ot
         payroll_record.net_working_days = present + (half * 0.5) + leave
         
-        daily_rate = (payroll_record.base_salary / 30) if payroll_record.base_salary else (salary_profile.daily_wage or 0)
-        earned = payroll_record.net_working_days * daily_rate
-        ot_earned = total_ot * salary_profile.ot_rate_per_hour
+        daily_rate = (payroll_record.base_salary / 30) if payroll_record.base_salary else (salary_profile.daily_wage or 0.0)
+        earned = (payroll_record.net_working_days or 0.0) * daily_rate
+        ot_earned = total_ot * (salary_profile.ot_rate_per_hour or 0.0)
         
         payroll_record.ot_amount = ot_earned
-        payroll_record.final_salary = earned + ot_earned - payroll_record.deductions
+        payroll_record.final_salary = earned + ot_earned - (payroll_record.deductions or 0.0)
         
         db.commit()

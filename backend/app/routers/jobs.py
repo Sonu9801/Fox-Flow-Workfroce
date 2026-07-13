@@ -111,7 +111,7 @@ async def update_job_status(job_id: int, payload: ProductionJobUpdate, db: Sessi
     db.refresh(job)
     
     await manager.broadcast({
-        "type": "JOB_UPDATED",
+        "type": "JOB_STATUS_CHANGED",
         "data": {
             "jobId": job.id,
             "status": job.status,

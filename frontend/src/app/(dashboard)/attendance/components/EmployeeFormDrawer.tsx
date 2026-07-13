@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Camera, CheckCircle2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { workersApi } from "@/lib/api";
+import { toast } from "sonner";
 
 interface EmployeeFormDrawerProps {
   open: boolean;
@@ -37,7 +38,7 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
     employmentStatus: "Active",
     
     shiftType: "General Shift",
-    shiftStart: "09:00",
+    shiftStart: "09:30",
     shiftEnd: "18:00",
     
     salaryType: "Monthly",
@@ -80,7 +81,7 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
         employmentStatus: worker.employmentStatus || "Active",
         
         shiftType: worker.shiftType || "General Shift",
-        shiftStart: worker.shiftStart || "09:00",
+        shiftStart: worker.shiftStart || "09:30",
         shiftEnd: worker.shiftEnd || "18:00",
         
         salaryType: worker.salaryProfile?.salaryType || "Monthly",
@@ -122,12 +123,12 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
       
       const payload = {
         ...form,
-        salary_profile: {
-          salary_type: form.salaryType,
-          monthly_salary: form.monthlySalary ? parseFloat(form.monthlySalary) : null,
-          daily_wage: form.dailyWage ? parseFloat(form.dailyWage) : null,
-          ot_rate_per_hour: parseFloat(form.otRatePerHour || "0"),
-          sunday_rate_per_hour: parseFloat(form.sundayRatePerHour || "0")
+        salaryProfile: {
+          salaryType: form.salaryType,
+          monthlySalary: form.monthlySalary ? parseFloat(form.monthlySalary) : null,
+          dailyWage: form.dailyWage ? parseFloat(form.dailyWage) : null,
+          otRatePerHour: parseFloat(form.otRatePerHour || "0"),
+          sundayRatePerHour: parseFloat(form.sundayRatePerHour || "0")
         }
       };
       
@@ -136,11 +137,12 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
       } else {
         await workersApi.create(payload);
       }
-      
       queryClient.invalidateQueries({ queryKey: ["workers"] });
       onOpenChange(false);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error(err.response?.data);
+      const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || "An error occurred";
+      toast.error(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
     } finally {
       setIsSubmitting(false);
     }

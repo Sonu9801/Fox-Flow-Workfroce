@@ -8,7 +8,8 @@ import {
   activitiesApi,
   notificationsApi,
   attendanceApi,
-  payrollApi
+  payrollApi,
+  jobsApi
 } from "@/lib/api";
 import type { Vehicle, Worker, QCRecord, DispatchRecord, ActivityEvent } from "@/types";
 
@@ -23,6 +24,13 @@ export function useWorkers() {
   return useQuery<Worker[]>({
     queryKey: ["workers"],
     queryFn: workersApi.getAll,
+  });
+}
+
+export function useAttendanceSettings() {
+  return useQuery({
+    queryKey: ["attendanceSettings"],
+    queryFn: attendanceApi.getSettings,
   });
 }
 
@@ -393,3 +401,54 @@ export function useGeneratePayroll() {
   });
 }
 
+export function useWorkerSummary(workerId: string | number) {
+  return useQuery({
+    queryKey: ["workerSummary", workerId],
+    queryFn: () => attendanceApi.getWorkerSummary(workerId),
+    enabled: !!workerId,
+  });
+}
+
+export function useWorkerHistory(workerId: string | number) {
+  return useQuery({
+    queryKey: ["workerHistory", workerId],
+    queryFn: () => attendanceApi.getWorkerHistory(workerId),
+    enabled: !!workerId,
+  });
+}
+
+export function useWorkerMonthlySummary(workerId: string | number, month?: string) {
+  return useQuery({
+    queryKey: ["workerMonthlySummary", workerId, month],
+    queryFn: () => attendanceApi.getWorkerMonthlySummary(workerId, month),
+    enabled: !!workerId,
+  });
+}
+
+export const useWorkerJobs = (workerId: string | number | undefined) => {
+  return useQuery({
+    queryKey: ["workerJobs", workerId],
+    queryFn: () => jobsApi.getWorkerJobs(workerId!),
+    enabled: !!workerId,
+  });
+};
+
+export const useLeaveHistory = (workerId: string | number | undefined) => {
+  return useQuery({
+    queryKey: ["leaveHistory", workerId],
+    queryFn: () => attendanceApi.getLeaveHistory(workerId!),
+    enabled: !!workerId,
+  });
+};
+
+export function useSubmitPunch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => attendanceApi.update(data.worker_id, data), // This should actually be whatever the punch API is, or offline queue logic
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["workerSummary", variables.worker_id] });
+      queryClient.invalidateQueries({ queryKey: ["workerHistory", variables.worker_id] });
+      queryClient.invalidateQueries({ queryKey: ["workerMonthlySummary", variables.worker_id] });
+    }
+  });
+}

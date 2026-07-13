@@ -13,8 +13,8 @@ router = APIRouter(prefix="/vehicles", tags=["vehicles"], dependencies=[Depends(
 @router.get("", response_model=List[VehicleResponse])
 def get_vehicles(db: Session = Depends(get_db), current_user = Depends(get_current_active_user)):
     query = db.query(Vehicle)
-    if current_user.role == "oem":
-        query = query.filter(Vehicle.oem_name.ilike(f"%{current_user.name}%"))
+    if current_user.role == "oem" and current_user.dealer_name:
+        query = query.filter(Vehicle.oem_name.ilike(f"%{current_user.dealer_name}%"))
     return query.order_by(Vehicle.id).all()
 
 @router.get("/{vehicle_id}", response_model=VehicleResponse)

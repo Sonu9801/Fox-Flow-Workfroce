@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, Request
 from app.auth import get_current_active_user
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime, timezone, timedelta
 from app.database import get_db
 from app.models.user import User
@@ -135,13 +136,13 @@ async def punch_attendance(
 
     db.commit()
 
-    await manager.broadcast_event("ATTENDANCE_UPDATE", {
+    await manager.broadcast({"type": "ATTENDANCE_UPDATE", "data": {
         "worker_id": worker.id,
         "worker_name": worker.name,
         "action": action,
         "status": worker.status,
         "timestamp": now.isoformat()
-    })
+    }})
 
     return {"message": f"Successfully {action}", "photo_url": photo_url}
 
@@ -442,7 +443,7 @@ def get_analytics(
     half_day = 0
     total_hours = 0
     punch_count = db.query(AttendanceLog).filter(
-        db.func.date(AttendanceLog.timestamp) == today
+        func.date(AttendanceLog.timestamp) == today
     ).count()
     
     for r in today_records:

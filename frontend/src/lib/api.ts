@@ -16,6 +16,13 @@ export const api = axios.create({
 });
 
 import { useAuthStore } from "@/store/authStore";
+import { toast } from "sonner";
+
+declare global {
+  interface Window {
+    _lastTimeoutToast?: number;
+  }
+}
 
 api.interceptors.request.use(
   (config) => {
@@ -50,8 +57,8 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    // Ignore if the request was to /auth/login or /auth/refresh to prevent infinite loops
-    if (originalRequest.url.includes('/auth/login') || originalRequest.url.includes('/auth/refresh')) {
+    // Ignore if the request was to /auth/login, /auth/refresh, or /auth/register to prevent infinite loops
+    if (originalRequest.url.includes('/auth/login') || originalRequest.url.includes('/auth/refresh') || originalRequest.url.includes('/auth/register')) {
       return Promise.reject(error);
     }
 
@@ -98,8 +105,8 @@ api.interceptors.response.use(
         processQueue(null, newToken);
         originalRequest.headers.Authorization = 'Bearer ' + newToken;
         return api(originalRequest);
-      } catch (refreshError) {
-        processQueue(refreshError, null);
+      } catch (err) {
+        processQueue(err, null);
         if (typeof window !== "undefined") {
           const isWorker = !!localStorage.getItem("worker_token");
           if (isWorker) {
@@ -110,19 +117,33 @@ api.interceptors.response.use(
             window.location.href = '/login';
           }
         }
-        return Promise.reject(refreshError);
+        return Promise.reject(err);
       } finally {
         isRefreshing = false;
       }
     }
     
+    // Handle Ngrok/Cloudflare timeouts (504) or Network Errors
+    if (error.response?.status === 504 || error.message === 'Network Error') {
+      console.warn("Server timeout or network error. It might be reloading.");
+      if (typeof window !== "undefined" && !window.location.pathname.includes('/login')) {
+        // Only show toast once every few seconds to avoid spam
+        if (!window._lastTimeoutToast || Date.now() - window._lastTimeoutToast > 5000) {
+          window._lastTimeoutToast = Date.now();
+          toast.error("Server is reconnecting. Please wait a moment...", { id: "network-timeout" });
+        }
+      }
+    }
+
     return Promise.reject(error);
   }
 );
 
 export const authApi = {
-  register: async (email: string, name: string, role = "operator") => {
-    const response = await api.post("/auth/register", { email, name, role });
+  register: async (email: string, name: string, role = "operator", dealer_name?: string) => {
+    const payload: any = { email, name, role };
+    if (dealer_name) payload.dealer_name = dealer_name;
+    const response = await api.post("/auth/register", payload);
     return response.data;
   },
   requestOtp: async (email: string) => {
@@ -145,7 +166,7 @@ export const authApi = {
 
 export const vehiclesApi = {
   getAll: async () => {
-    const response = await api.get("/vehicles/");
+    const response = await api.get("/vehicles");
     return response.data;
   },
   getOne: async (id: number | string) => {
@@ -153,7 +174,7 @@ export const vehiclesApi = {
     return response.data;
   },
   create: async (data: any) => {
-    const response = await api.post("/vehicles/", data);
+    const response = await api.post("/vehicles", data);
     return response.data;
   },
   oemSubmit: async (data: any) => {
@@ -215,7 +236,7 @@ export const workersApi = {
 
 export const qualityApi = {
   getAll: async () => {
-    const response = await api.get("/quality/");
+    const response = await api.get("/quality");
     return response.data;
   },
   getOne: async (id: number | string) => {
@@ -223,7 +244,7 @@ export const qualityApi = {
     return response.data;
   },
   create: async (data: any) => {
-    const response = await api.post("/quality/", data);
+    const response = await api.post("/quality", data);
     return response.data;
   },
   update: async (id: number | string, data: any) => {
@@ -250,11 +271,11 @@ export const qualityApi = {
 
 export const dispatchApi = {
   getAll: async () => {
-    const response = await api.get("/dispatch/");
+    const response = await api.get("/dispatch");
     return response.data;
   },
   create: async (data: any) => {
-    const response = await api.post("/dispatch/", data);
+    const response = await api.post("/dispatch", data);
     return response.data;
   },
   update: async (id: number | string, data: any) => {
@@ -304,11 +325,11 @@ export const invoicesApi = {
 
 export const activitiesApi = {
   getAll: async () => {
-    const response = await api.get("/activities/");
+    const response = await api.get("/activities");
     return response.data;
   },
   create: async (data: any) => {
-    const response = await api.post("/activities/", data);
+    const response = await api.post("/activities", data);
     return response.data;
   },
 };
@@ -333,6 +354,10 @@ export const notificationsApi = {
 };
 
 export const attendanceApi = {
+  getSettings: async () => {
+    const response = await api.get("/settings/attendance");
+    return response.data;
+  },
   getAnalytics: async () => {
     const response = await api.get("/attendance/analytics");
     return response.data;
@@ -342,7 +367,7 @@ export const attendanceApi = {
     return response.data;
   },
   getAll: async () => {
-    const response = await api.get("/attendance/");
+    const response = await api.get("/attendance");
     return response.data;
   },
   getExceptions: async () => {
@@ -438,6 +463,36 @@ export const payrollApi = {
   generate: async (month?: string) => {
     const params = month ? { month } : {};
     const response = await api.post("/payroll/generate", null, { params });
+    return response.data;
+  }
+};
+
+export const leaveApi = {
+  getAll: async () => {
+    const response = await api.get("/leave");
+    return response.data;
+  },
+  updateStatus: async (id: number | string, data: { status: string, remarks?: string }) => {
+    const response = await api.put(`/leave/${id}/status`, data);
+    return response.data;
+  }
+};
+
+export const componentsApi = {
+  startTask: async (component_type: string, component_number: string) => {
+    const response = await api.post("/components/start", { component_type, component_number });
+    return response.data;
+  },
+  submitTask: async (task_id: number, photo_proof_url: string, notes?: string) => {
+    const response = await api.post(`/components/${task_id}/submit`, { photo_proof_url, notes });
+    return response.data;
+  },
+  getWorkerTasks: async (worker_id: number) => {
+    const response = await api.get(`/components/worker/${worker_id}`);
+    return response.data;
+  },
+  getAllTasks: async () => {
+    const response = await api.get("/components");
     return response.data;
   }
 };

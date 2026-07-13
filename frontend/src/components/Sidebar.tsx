@@ -62,24 +62,24 @@ const navGroups = [
     items: [
       { label: "Workers", href: "/workers", icon: Users },
       { label: "Attendance", href: "/attendance", icon: Clock },
-      { label: "Payroll", href: "/payroll", icon: Banknote },
+      { label: "Payroll", href: "/payroll", icon: Banknote, roles: ["admin", "manager", "hr"] },
     ]
   },
   {
     title: "Quality & Delivery",
     items: [
       { label: "Quality Control", href: "/quality-control", icon: CheckCircle2 },
-      { label: "Dispatch", href: "/dispatch", icon: Truck },
-      { label: "Invoices", href: "/invoices", icon: Banknote },
+      { label: "Dispatch", href: "/dispatch", icon: Truck, roles: ["admin", "manager", "dispatcher"] },
+      { label: "Invoices", href: "/invoices", icon: Banknote, roles: ["admin", "manager", "finance"] },
     ]
   },
   {
     title: "System",
     items: [
       { label: "Reports", href: "/reports", icon: FileBarChart },
-      { label: "Activity Logs", href: "/activity-logs", icon: Activity },
+      { label: "Activity Logs", href: "/activity-logs", icon: Activity, roles: ["admin"] },
       { label: "Notifications", href: "/notifications", icon: Bell },
-      { label: "OEM Portal", href: "/oem-portal", icon: Building2 },
+      { label: "OEM Portal", href: "/oem-portal", icon: Building2, roles: ["admin", "oem"] },
       { label: "Settings", href: "/settings", icon: Settings },
     ]
   }
@@ -149,7 +149,18 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-4 scrollbar-thin">
-          {navGroups.map((group) => (
+          {navGroups.map((group) => {
+            const filteredItems = group.items.filter(item => {
+              if (role?.toLowerCase() === "oem") {
+                return item.roles?.includes("oem");
+              }
+              if (!item.roles) return true;
+              return item.roles.includes(role?.toLowerCase() || "");
+            });
+            
+            if (filteredItems.length === 0) return null;
+
+            return (
             <div key={group.title} className="flex flex-col gap-1">
               {!sidebarCollapsed ? (
                 <button 
@@ -180,7 +191,7 @@ export function Sidebar() {
                     transition={{ duration: 0.2 }}
                     className="flex flex-col gap-1 overflow-hidden"
                   >
-                    {group.items.map((item) => {
+                    {filteredItems.map((item) => {
                       const Icon = item.icon;
                       let isActive = false;
                       if (item.href === "/") {
@@ -248,7 +259,8 @@ export function Sidebar() {
                 )}
               </AnimatePresence>
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="border-t border-sidebar-border p-2 flex-shrink-0">

@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regRole, setRegRole] = useState("operator");
+  const [regDealerName, setRegDealerName] = useState("");
 
   const [step, setStep] = useState<AuthStep>("email");
   const [loading, setLoading] = useState(false);
@@ -36,6 +37,8 @@ export default function LoginPage() {
     if (token && role) {
       if (role.toLowerCase() === "worker") {
         router.push("/workforce");
+      } else if (role.toLowerCase() === "supervisor") {
+        router.push("/workforce/supervisor");
       } else {
         router.push("/");
       }
@@ -109,6 +112,8 @@ export default function LoginPage() {
       toast.success("Successfully signed in!");
       if (data.role?.toLowerCase() === "worker") {
         router.push("/workforce");
+      } else if (data.role?.toLowerCase() === "supervisor") {
+        router.push("/workforce/supervisor");
       } else {
         router.push("/");
       }
@@ -130,7 +135,7 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      await authApi.register(regEmail, regName, regRole);
+      await authApi.register(regEmail, regName, regRole, regRole === "oem" ? regDealerName : undefined);
       toast.success("Account created! You can now sign in.");
       setEmail(regEmail);
       setStep("email");
@@ -455,9 +460,32 @@ export default function LoginPage() {
                         <option value="admin">Admin</option>
                         <option value="operator">Operator</option>
                         <option value="supervisor">Supervisor</option>
+                        <option value="oem">OEM / Client</option>
                         <option value="viewer">Viewer</option>
                       </select>
                     </div>
+
+                    <AnimatePresence>
+                      {regRole === "oem" && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-2 overflow-hidden"
+                        >
+                          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Dealer / Company Name</label>
+                          <input
+                            type="text"
+                            value={regDealerName}
+                            onChange={(e) => setRegDealerName(e.target.value)}
+                            placeholder="e.g. Tata Motors"
+                            required={regRole === "oem"}
+                            className="w-full bg-background border border-border rounded-xl px-4 py-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
+                            suppressHydrationWarning
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
                     <div className="pt-2">
                       <Button
